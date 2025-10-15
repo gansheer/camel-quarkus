@@ -17,21 +17,18 @@
 package org.apache.camel.quarkus.transformer;
 
 import io.quarkus.runtime.annotations.RegisterForReflection;
+import org.apache.camel.Message;
+import org.apache.camel.spi.DataType;
+import org.apache.camel.spi.Transformer;
 
-@RegisterForReflection
-public class TransformerBean {
-    private final String message;
-
-    public TransformerBean(String message) {
-        this.message = message;
-    }
-
-    public String getMessage() {
-        return message;
-    }
+/**
+ * Lowercase Transformer
+ */
+@RegisterForReflection // Let Quarkus register this class for reflection during the native build
+public class LowercaseTransformer extends Transformer {
 
     @Override
-    public String toString() {
-        return "Transformed " + message;
+    public void transform(Message message, DataType fromType, DataType toType) {
+        message.setBody(("Transformed " + message.getBody(String.class)).toLowerCase());
     }
 }
