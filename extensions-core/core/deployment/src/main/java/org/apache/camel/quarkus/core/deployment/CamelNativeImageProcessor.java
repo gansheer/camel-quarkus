@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -49,6 +50,7 @@ import org.apache.camel.impl.engine.DefaultTransformerResolver;
 import org.apache.camel.quarkus.core.CamelConfig;
 import org.apache.camel.quarkus.core.CamelConfig.ReflectionConfig;
 import org.apache.camel.quarkus.core.CamelConfigFlags;
+import org.apache.camel.quarkus.core.deployment.spi.CamelPackageScanClassBuildItem;
 import org.apache.camel.quarkus.core.deployment.spi.CamelRoutesBuilderClassBuildItem;
 import org.apache.camel.quarkus.core.deployment.spi.CamelServiceBuildItem;
 import org.apache.camel.quarkus.core.deployment.spi.CamelServicePatternBuildItem;
@@ -60,6 +62,7 @@ import org.apache.camel.spi.PropertiesComponent;
 import org.apache.camel.spi.ScheduledPollConsumerScheduler;
 import org.apache.camel.spi.StreamCachingStrategy;
 import org.apache.camel.support.CamelContextHelper;
+import org.jboss.jandex.AnnotationTarget;
 import org.jboss.jandex.AnnotationTarget.Kind;
 import org.jboss.jandex.AnnotationValue;
 import org.jboss.jandex.ClassInfo;
@@ -91,7 +94,8 @@ public class CamelNativeImageProcessor {
     void reflectiveItems(
             CombinedIndexBuildItem combinedIndex,
             BuildProducer<ReflectiveClassBuildItem> reflectiveClass,
-            BuildProducer<ReflectiveMethodBuildItem> reflectiveMethod) {
+            BuildProducer<ReflectiveMethodBuildItem> reflectiveMethod,
+            BuildProducer<CamelPackageScanClassBuildItem> packageScanClass) {
 
         final IndexView view = combinedIndex.getIndex();
 
@@ -139,6 +143,26 @@ public class CamelNativeImageProcessor {
                 .filter(ai -> converterClasses.contains(ai.target().asMethod().declaringClass()))
                 .map(ai -> ai.target().asMethod())
                 .forEach(mi -> reflectiveMethod.produce(new ReflectiveMethodBuildItem(mi)));
+
+        // Register @DataTypeTransformer annotated classes for package scanning and reflection
+        // This enables transformer.scan() to work in native mode
+        DotName dataTypeTransformer = DotName.createSimple("org.apache.camel.spi.DataTypeTransformer");
+        Set<String> transformerClasses = view.getAnnotations(dataTypeTransformer)
+                .stream()
+                .filter(ai -> ai.target().kind() == AnnotationTarget.Kind.CLASS)
+                .map(ai -> ai.target().asClass().name().toString())
+                .collect(Collectors.toSet());
+
+        if (!transformerClasses.isEmpty()) {
+            LOGGER.debug("Found @DataTypeTransformer annotated classes: {}", transformerClasses);
+            packageScanClass.produce(new CamelPackageScanClassBuildItem(transformerClasses));
+
+            // Register transformer classes for reflection so they can be instantiated at runtime
+            transformerClasses.forEach(className -> reflectiveClass.produce(
+                    ReflectiveClassBuildItem.builder(className)
+                            .methods()
+                            .build()));
+        }
 
         reflectiveClass.produce(
                 ReflectiveClassBuildItem.builder(

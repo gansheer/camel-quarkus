@@ -432,37 +432,6 @@ class CamelProcessor {
         return new CamelComponentNameResolverBuildItem(recorder.createComponentNameResolver(componentNames));
     }
 
-    /**
-     * Discovers classes annotated with @DataTypeTransformer for package scanning and reflection.
-     * This enables transformer.scan() to work in native mode.
-     */
-    @BuildStep
-    void discoverDataTypeTransformers(
-            CombinedIndexBuildItem combinedIndex,
-            BuildProducer<CamelPackageScanClassBuildItem> packageScanClass,
-            BuildProducer<ReflectiveClassBuildItem> reflectiveClass) {
-
-        IndexView view = combinedIndex.getIndex();
-        DotName dataTypeTransformer = DotName.createSimple("org.apache.camel.spi.DataTypeTransformer");
-
-        Set<String> transformerClasses = view.getAnnotations(dataTypeTransformer)
-                .stream()
-                .filter(ai -> ai.target().kind() == AnnotationTarget.Kind.CLASS)
-                .map(ai -> ai.target().asClass().name().toString())
-                .collect(Collectors.toSet());
-
-        if (!transformerClasses.isEmpty()) {
-            LOGGER.debug("Found @DataTypeTransformer annotated classes: {}", transformerClasses);
-            packageScanClass.produce(new CamelPackageScanClassBuildItem(transformerClasses));
-
-            // Register transformer classes for reflection so they can be instantiated at runtime
-            transformerClasses.forEach(className -> reflectiveClass.produce(
-                    ReflectiveClassBuildItem.builder(className)
-                            .methods()
-                            .build()));
-        }
-    }
-
     @Record(ExecutionTime.STATIC_INIT)
     @BuildStep
     CamelPackageScanClassResolverBuildItem packageScanClassResolver(
