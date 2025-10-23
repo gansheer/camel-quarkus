@@ -109,6 +109,8 @@ class CamelProcessor {
             "org.apache.camel.Predicate");
     private static final DotName CONVERTER_TYPE = DotName.createSimple(
             "org.apache.camel.Converter");
+    private static final DotName TRANSFORMER_TYPE = DotName.createSimple(
+            "org.apache.camel.spi.Transformer");
 
     private static final Set<DotName> UNREMOVABLE_BEANS_TYPES = CamelSupport.setOf(
             ROUTES_BUILDER_TYPE,
@@ -433,26 +435,40 @@ class CamelProcessor {
     }
 
     /**
-     * Discovers classes annotated with @DataTypeTransformer for package scanning and reflection.
+     * Discovers all Transformer implementations for package scanning and reflection.
+     * Excludes transformers from org.apache.camel:camel-* artifacts.
      * This enables transformer.scan() to work in native mode.
      */
     @BuildStep
-    void discoverDataTypeTransformers(
+    void discoverTransformers(
+            ApplicationArchivesBuildItem applicationArchives,
             CombinedIndexBuildItem combinedIndex,
             BuildProducer<CamelPackageScanClassBuildItem> packageScanClass,
             BuildProducer<ReflectiveClassBuildItem> reflectiveClass) {
 
-        IndexView view = combinedIndex.getIndex();
-        DotName dataTypeTransformer = DotName.createSimple("org.apache.camel.spi.DataTypeTransformer");
+        IndexView index = combinedIndex.getIndex();
 
-        Set<String> transformerClasses = view.getAnnotations(dataTypeTransformer)
+        Set<String> internalTransformers = new HashSet<>();
+        // Ignore all Transformer implementations from org.apache.camel:camel-* dependencies
+        for (ApplicationArchive archive : applicationArchives.getAllApplicationArchives()) {
+            ArtifactKey artifactKey = archive.getKey();
+            if (artifactKey != null && "org.apache.camel".equals(artifactKey.getGroupId())
+                    && artifactKey.getArtifactId().startsWith("camel-")) {
+                internalTransformers.addAll(archive.getIndex().getAllKnownSubclasses(TRANSFORMER_TYPE)
+                        .stream()
+                        .map(classInfo -> classInfo.name().toString())
+                        .collect(Collectors.toSet()));
+            }
+        }
+
+        Set<String> transformerClasses = index.getAllKnownSubclasses(TRANSFORMER_TYPE)
                 .stream()
-                .filter(ai -> ai.target().kind() == AnnotationTarget.Kind.CLASS)
-                .map(ai -> ai.target().asClass().name().toString())
+                .map(classInfo -> classInfo.name().toString())
+                .filter(className -> !internalTransformers.contains(className))
                 .collect(Collectors.toSet());
 
         if (!transformerClasses.isEmpty()) {
-            LOGGER.debug("Found @DataTypeTransformer annotated classes: {}", transformerClasses);
+            LOGGER.debug("Found Transformer classes: {}", transformerClasses);
             packageScanClass.produce(new CamelPackageScanClassBuildItem(transformerClasses));
 
             // Register transformer classes for reflection so they can be instantiated at runtime
