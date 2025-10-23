@@ -16,7 +16,6 @@
  */
 package org.apache.camel.quarkus.transformer;
 
-import io.quarkus.runtime.annotations.RegisterForReflection;
 import org.apache.camel.Message;
 import org.apache.camel.spi.DataType;
 import org.apache.camel.spi.Transformer;
@@ -24,7 +23,6 @@ import org.apache.camel.spi.Transformer;
 /**
  * Lowercase Transformer
  */
-@RegisterForReflection // Let Quarkus register this class for reflection during the native build
 public class LowercaseTransformer extends Transformer {
 
     @Override
