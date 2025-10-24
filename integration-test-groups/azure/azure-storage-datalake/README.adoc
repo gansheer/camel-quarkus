@@ -1,4 +1,4 @@
-There is no test container (nor Azurite), which supportd azure-storage-datalake.
+There is no test container (nor Azurite), which supports azure-storage-datalake.
 
 
 === Real Azure API
