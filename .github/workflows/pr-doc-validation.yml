@@ -57,4 +57,4 @@ jobs:
           yarn install
           cd ../camel-quarkus/docs
           yarn install
-          ./local-build.sh quick
+          ./local-build.sh full
