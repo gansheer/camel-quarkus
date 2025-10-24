@@ -58,6 +58,6 @@ jobs:
           cd ../camel-quarkus/docs
           yarn install
           ./local-build.sh full
-          cd ../camel-website
+          cd ../../camel-website
           yarn build:hugo
           yarn checks
