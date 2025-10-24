@@ -113,6 +113,7 @@ public class Routes extends RouteBuilder {
     }
 }
 ----
+TODO for tests
 
 
 [id="extensions-infinispan-additional-camel-quarkus-configuration"]
