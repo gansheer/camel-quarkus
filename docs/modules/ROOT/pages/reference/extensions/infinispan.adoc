@@ -112,7 +112,7 @@ public class Routes extends RouteBuilder {
         // Route configuration here...
     }
 }
-----
+
 
 
 [id="extensions-infinispan-additional-camel-quarkus-configuration"]
