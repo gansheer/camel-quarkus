@@ -31,7 +31,7 @@ public class ClientCallbackHandler implements CallbackHandler {
         for (int i = 0; i < callbacks.length; i++) {
             if (callbacks[i] instanceof WSPasswordCallback) {
                 WSPasswordCallback pc = (WSPasswordCallback) callbacks[i];
-                if ("client".equals(pc.getIdentifier())) {
+                if ("myclientkey".equals(pc.getIdentifier())) {
                     pc.setPassword("password");
                     break;
                 } else if ("alice".equals(pc.getIdentifier())) {
@@ -40,7 +40,7 @@ public class ClientCallbackHandler implements CallbackHandler {
                 } else if ("bob".equals(pc.getIdentifier())) {
                     pc.setPassword("trombone");
                     break;
-                } else if ("service".equals(pc.getIdentifier())) { // rls test  added for bearer test
+                } else if ("myservicekey".equals(pc.getIdentifier())) { // rls test  added for bearer test
                     pc.setPassword("password");
                     break;
                 }

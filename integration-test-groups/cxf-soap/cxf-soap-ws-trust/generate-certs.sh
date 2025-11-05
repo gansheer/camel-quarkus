@@ -37,7 +37,7 @@ openssl genrsa -out "$workDir/cxfca.key" $keySize
 openssl req -x509 -new -subj '/O=apache.org/OU=eng (NOT FOR PRODUCTION)/CN=cxfca' -key "$workDir/cxfca.key" -nodes -out "$workDir/cxfca.pem" -days $days -extensions v3_req
 openssl req -new -subj '/O=apache.org/OU=eng (NOT FOR PRODUCTION)/CN=cxfca' -x509 -key "$workDir/cxfca.key" -days $days -out "$workDir/cxfca.crt"
 
-for actor in client service sts; do
+for actor in client service sts actas; do
   # Generate keys
   openssl genrsa -out "$workDir/$actor.key" $keySize
 
@@ -46,16 +46,18 @@ for actor in client service sts; do
   openssl x509 -req -in "$workDir/$actor.csr" -CA "$workDir/cxfca.pem" -CAkey "$workDir/cxfca.key" -CAcreateserial -days $days -out "$workDir/$actor.crt"
 
   # Export keystores
-  openssl pkcs12 -export -in "$workDir/$actor.crt" -inkey "$workDir/$actor.key" -certfile "$workDir/cxfca.crt" -name "$actor" -out "$destinationDir/$actor.pkcs12" -passout pass:"$password" -keypbe "$encryptionAlgo" -certpbe "$encryptionAlgo"
+  openssl pkcs12 -export -in "$workDir/$actor.crt" -inkey "$workDir/$actor.key" -certfile "$workDir/cxfca.crt" -name "my${actor}key" -out "$destinationDir/${actor}store.pkcs12" -passout pass:"$password" -keypbe "$encryptionAlgo" -certpbe "$encryptionAlgo"
 done
 
-keytool -import -trustcacerts -alias sts     -file "$workDir/sts.crt"     -noprompt -keystore "$destinationDir/service.pkcs12"  -storepass "$password"
+keytool -import -trustcacerts -alias mystskey     -file "$workDir/sts.crt"     -noprompt -keystore "$destinationDir/servicestore.pkcs12"  -storepass "$password"
 
-keytool -import -trustcacerts -alias service -file "$workDir/service.crt" -noprompt -keystore "$destinationDir/sts.pkcs12"      -storepass "$password"
-keytool -import -trustcacerts -alias client  -file "$workDir/client.crt"  -noprompt -keystore "$destinationDir/sts.pkcs12"      -storepass "$password"
+keytool -import -trustcacerts -alias actasclient -file "$workDir/actas.crt" -noprompt -keystore "$destinationDir/stsstore.pkcs12"      -storepass "$password"
+keytool -import -trustcacerts -alias myclientkey -file "$workDir/client.crt" -noprompt -keystore "$destinationDir/stsstore.pkcs12"      -storepass "$password"
+keytool -import -trustcacerts -alias myservicekey -file "$workDir/service.crt" -noprompt -keystore "$destinationDir/stsstore.pkcs12"      -storepass "$password"
 
-keytool -import -trustcacerts -alias service -file "$workDir/service.crt" -noprompt -keystore "$destinationDir/client.pkcs12"   -storepass "$password"
-keytool -import -trustcacerts -alias sts     -file "$workDir/sts.crt"     -noprompt -keystore "$destinationDir/client.pkcs12"   -storepass "$password"
+keytool -import -trustcacerts -alias myactaskey -file "$workDir/actas.crt" -noprompt -keystore "$destinationDir/clientstore.pkcs12"      -storepass "$password"
+keytool -import -trustcacerts -alias myservicekey -file "$workDir/service.crt" -noprompt -keystore "$destinationDir/clientstore.pkcs12"   -storepass "$password"
+keytool -import -trustcacerts -alias mystskey     -file "$workDir/sts.crt"     -noprompt -keystore "$destinationDir/clientstore.pkcs12"   -storepass "$password"
 
-mv "$destinationDir/client.pkcs12" "$destinationTestDir/client.pkcs12"
-
+mv "$destinationDir/clientstore.pkcs12" "$destinationTestDir/clientstore.pkcs12"
+rm "$destinationDir/actasstore.pkcs12"
