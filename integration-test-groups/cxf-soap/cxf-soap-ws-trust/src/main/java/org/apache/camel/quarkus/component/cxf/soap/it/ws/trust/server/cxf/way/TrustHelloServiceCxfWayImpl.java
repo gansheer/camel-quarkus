@@ -25,7 +25,7 @@ import org.apache.cxf.annotations.EndpointProperty;
 
 @WebService(portName = "TrustHelloServicePort", serviceName = "TrustHelloServiceCxfWay", targetNamespace = "https://quarkiverse.github.io/quarkiverse-docs/quarkus-cxf/test/ws-trust", endpointInterface = "org.apache.camel.quarkus.component.cxf.soap.it.ws.trust.server.cxf.way.TrustHelloServiceCxfWay")
 @EndpointProperties(value = {
-        @EndpointProperty(key = "ws-security.signature.username", value = "myservicekey"),
+        @EndpointProperty(key = "ws-security.signature.username", value = "service"),
         @EndpointProperty(key = "ws-security.signature.properties", value = "serviceKeystore.properties"),
         @EndpointProperty(key = "ws-security.encryption.properties", value = "serviceKeystore.properties"),
         @EndpointProperty(key = "ws-security.callback-handler", value = "org.apache.camel.quarkus.component.cxf.soap.it.ws.trust.server.ServerCallbackHandler")

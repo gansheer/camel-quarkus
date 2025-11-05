@@ -63,7 +63,7 @@ public class WsTrustServerRoutes extends RouteBuilder {
 
         Map<String, Object> props = new HashMap<>();
 
-        props.put("ws-security.signature.username", "myservicekey");
+        props.put("ws-security.signature.username", "service");
         props.put("ws-security.signature.properties", "serviceKeystore.properties");
         props.put("ws-security.encryption.properties", "serviceKeystore.properties");
         props.put("ws-security.callback-handler",

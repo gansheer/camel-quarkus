@@ -10,6 +10,7 @@ encryptionAlgo="aes-256-cbc"
 
 workDir="target/openssl-work"
 destinationDir="src/main/resources"
+destinationTestDir="src/test/resources"
 
 # see https://stackoverflow.com/a/54924640
 export MSYS_NO_PATHCONV=1
@@ -48,11 +49,13 @@ for actor in client service sts; do
   openssl pkcs12 -export -in "$workDir/$actor.crt" -inkey "$workDir/$actor.key" -certfile "$workDir/cxfca.crt" -name "$actor" -out "$destinationDir/$actor.pkcs12" -passout pass:"$password" -keypbe "$encryptionAlgo" -certpbe "$encryptionAlgo"
 done
 
-keytool -import -trustcacerts -alias mystskey     -file "$workDir/sts.crt"     -noprompt -keystore "$destinationDir/service.pkcs12"  -storepass "$password"
+keytool -import -trustcacerts -alias sts     -file "$workDir/sts.crt"     -noprompt -keystore "$destinationDir/service.pkcs12"  -storepass "$password"
 
-keytool -import -trustcacerts -alias myservicekey -file "$workDir/service.crt" -noprompt -keystore "$destinationDir/sts.pkcs12"      -storepass "$password"
-keytool -import -trustcacerts -alias myclientkey  -file "$workDir/client.crt"  -noprompt -keystore "$destinationDir/sts.pkcs12"      -storepass "$password"
+keytool -import -trustcacerts -alias service -file "$workDir/service.crt" -noprompt -keystore "$destinationDir/sts.pkcs12"      -storepass "$password"
+keytool -import -trustcacerts -alias client  -file "$workDir/client.crt"  -noprompt -keystore "$destinationDir/sts.pkcs12"      -storepass "$password"
 
 keytool -import -trustcacerts -alias service -file "$workDir/service.crt" -noprompt -keystore "$destinationDir/client.pkcs12"   -storepass "$password"
-keytool -import -trustcacerts -alias mystskey     -file "$workDir/sts.crt"     -noprompt -keystore "$destinationDir/client.pkcs12"   -storepass "$password"
+keytool -import -trustcacerts -alias sts     -file "$workDir/sts.crt"     -noprompt -keystore "$destinationDir/client.pkcs12"   -storepass "$password"
+
+mv "$destinationDir/client.pkcs12" "$destinationTestDir/client.pkcs12"
 
