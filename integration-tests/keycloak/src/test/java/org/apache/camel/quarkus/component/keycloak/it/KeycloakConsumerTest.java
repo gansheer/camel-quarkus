@@ -20,10 +20,16 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
+import io.restassured.RestAssured;
+import io.restassured.config.ObjectMapperConfig;
+import io.restassured.config.RestAssuredConfig;
 import io.restassured.http.ContentType;
 import org.awaitility.Awaitility;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -48,6 +54,20 @@ class KeycloakConsumerTest {
     private static final String TEST_REALM_NAME = "consumer-test-realm-" + UUID.randomUUID().toString().substring(0, 8);
     private static final String TEST_USER_NAME = "consumer-test-user-" + UUID.randomUUID().toString().substring(0, 8);
     private static final String TEST_ROLE_NAME = "consumer-test-role-" + UUID.randomUUID().toString().substring(0, 8);
+
+    @BeforeAll
+    public static void configureRestAssured() {
+        // Configure REST-assured to ignore unknown properties when deserializing
+        // This is needed because the Keycloak server may return newer fields
+        // that the client representation classes don't know about
+        RestAssured.config = RestAssuredConfig.config().objectMapperConfig(
+                ObjectMapperConfig.objectMapperConfig().jackson2ObjectMapperFactory(
+                        (cls, charset) -> {
+                            ObjectMapper mapper = new ObjectMapper();
+                            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                            return mapper;
+                        }));
+    }
 
     @Test
     @Order(1)
