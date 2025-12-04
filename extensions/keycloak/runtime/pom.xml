@@ -41,8 +41,34 @@
             <artifactId>camel-quarkus-core</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.apache.camel.quarkus</groupId>
+            <artifactId>camel-quarkus-support-httpclient</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.apache.camel</groupId>
             <artifactId>camel-keycloak</artifactId>
+        </dependency>
+        <!-- Required for Apache HTTP Async Client engine used by RESTEasy -->
+        <!-- This is needed even though we don't use async client, because GraalVM -->
+        <!-- tries to initialize the engine class during native image build -->
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpcore-nio</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpasyncclient</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- Required for QuarkusJacksonSerializer that works in native mode -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-resteasy-client-jackson</artifactId>
         </dependency>
     </dependencies>
 

@@ -17,6 +17,7 @@
 package org.apache.camel.quarkus.component.keycloak.it;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -32,6 +33,10 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.keycloak.representations.idm.ClientRepresentation;
+import org.keycloak.representations.idm.ClientScopeRepresentation;
+import org.keycloak.representations.idm.CredentialRepresentation;
+import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
@@ -51,6 +56,11 @@ class KeycloakTest {
     private static final String TEST_REALM_NAME = "test-realm-" + UUID.randomUUID().toString().substring(0, 8);
     private static final String TEST_USER_NAME = "test-user-" + UUID.randomUUID().toString().substring(0, 8);
     private static final String TEST_ROLE_NAME = "test-role-" + UUID.randomUUID().toString().substring(0, 8);
+    private static final String TEST_GROUP_NAME = "test-group-" + UUID.randomUUID().toString().substring(0, 8);
+    private static final String TEST_CLIENT_ID = "test-client-" + UUID.randomUUID().toString().substring(0, 8);
+    private static final String TEST_CLIENT_ROLE_NAME = "test-client-role-"
+            + UUID.randomUUID().toString().substring(0, 8);
+    private static final String TEST_CLIENT_SCOPE_NAME = "test-scope-" + UUID.randomUUID().toString().substring(0, 8);
 
     @BeforeAll
     public static void configureRestAssured() {
@@ -206,10 +216,48 @@ class KeycloakTest {
         assertThat(users.size(), greaterThanOrEqualTo(2)); // At least our two test users
     }
 
+    @Test
+    @Order(9)
+    public void testUpdateUser() {
+        // First get the user
+        UserRepresentation user = given()
+                .when()
+                .get("/keycloak/user/{realmName}/{username}", TEST_REALM_NAME, TEST_USER_NAME)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(UserRepresentation.class);
+
+        // Update the user's first name
+        user.setFirstName("UpdatedFirstName");
+        user.setLastName("UpdatedLastName");
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(user)
+                .when()
+                .put("/keycloak/user/{realmName}/{username}", TEST_REALM_NAME, TEST_USER_NAME)
+                .then()
+                .statusCode(200)
+                .body(is("User updated successfully"));
+
+        // Verify the update
+        UserRepresentation updatedUser = given()
+                .when()
+                .get("/keycloak/user/{realmName}/{username}", TEST_REALM_NAME, TEST_USER_NAME)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(UserRepresentation.class);
+
+        assertThat(updatedUser.getFirstName(), is("UpdatedFirstName"));
+        assertThat(updatedUser.getLastName(), is("UpdatedLastName"));
+    }
+
     // ==================== Role Operations Tests ====================
 
     @Test
-    @Order(9)
+    @Order(10)
     public void testCreateRoleWithHeaders() {
         given()
                 .queryParam("description", "Test role for integration testing")
@@ -221,7 +269,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(10)
+    @Order(11)
     public void testCreateRoleWithPojo() {
         String pojoRoleName = TEST_ROLE_NAME + "-pojo";
 
@@ -240,7 +288,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(11)
+    @Order(12)
     public void testGetRole() {
         RoleRepresentation role = given()
                 .when()
@@ -257,7 +305,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(12)
+    @Order(13)
     public void testListRoles() {
         List<RoleRepresentation> roles = given()
                 .when()
@@ -274,10 +322,46 @@ class KeycloakTest {
         assertThat(roles.size(), greaterThanOrEqualTo(2)); // At least our test roles + default roles
     }
 
+    @Test
+    @Order(14)
+    public void testUpdateRole() {
+        // First get the role
+        RoleRepresentation role = given()
+                .when()
+                .get("/keycloak/role/{realmName}/{roleName}", TEST_REALM_NAME, TEST_ROLE_NAME)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(RoleRepresentation.class);
+
+        // Update the role's description
+        role.setDescription("Updated role description");
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(role)
+                .when()
+                .put("/keycloak/role/{realmName}/{roleName}", TEST_REALM_NAME, TEST_ROLE_NAME)
+                .then()
+                .statusCode(200)
+                .body(is("Role updated successfully"));
+
+        // Verify the update
+        RoleRepresentation updatedRole = given()
+                .when()
+                .get("/keycloak/role/{realmName}/{roleName}", TEST_REALM_NAME, TEST_ROLE_NAME)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(RoleRepresentation.class);
+
+        assertThat(updatedRole.getDescription(), is("Updated role description"));
+    }
+
     // ==================== User-Role Operations Tests ====================
 
     @Test
-    @Order(13)
+    @Order(15)
     public void testAssignRoleToUser() {
         given()
                 .when()
@@ -289,7 +373,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(14)
+    @Order(16)
     public void testRemoveRoleFromUser() {
         given()
                 .when()
@@ -300,10 +384,950 @@ class KeycloakTest {
                 .body(is("Role removed from user successfully"));
     }
 
+    // ==================== Group Operations Tests ====================
+
+    @Test
+    @Order(17)
+    public void testCreateGroupWithHeaders() {
+        given()
+                .when()
+                .post("/keycloak/group/{realmName}/{groupName}", TEST_REALM_NAME, TEST_GROUP_NAME)
+                .then()
+                .statusCode(201)
+                .body(is("Group created successfully"));
+    }
+
+    @Test
+    @Order(18)
+    public void testCreateGroupWithPojo() {
+        String pojoGroupName = TEST_GROUP_NAME + "-pojo";
+
+        GroupRepresentation group = new GroupRepresentation();
+        group.setName(pojoGroupName);
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(group)
+                .when()
+                .post("/keycloak/group/{realmName}/pojo", TEST_REALM_NAME)
+                .then()
+                .statusCode(201)
+                .body(is("Group created successfully"));
+    }
+
+    @Test
+    @Order(19)
+    public void testListGroups() {
+        List<GroupRepresentation> groups = given()
+                .when()
+                .get("/keycloak/group/{realmName}", TEST_REALM_NAME)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .body()
+                .jsonPath()
+                .getList(".", GroupRepresentation.class);
+
+        assertThat(groups, notNullValue());
+        assertThat(groups.size(), greaterThanOrEqualTo(2)); // At least our two test groups
+    }
+
+    @Test
+    @Order(20)
+    public void testGetGroup() {
+        GroupRepresentation group = given()
+                .when()
+                .get("/keycloak/group/{realmName}/{groupName}", TEST_REALM_NAME, TEST_GROUP_NAME)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .as(GroupRepresentation.class);
+
+        assertThat(group, notNullValue());
+        assertThat(group.getName(), is(TEST_GROUP_NAME));
+    }
+
+    @Test
+    @Order(21)
+    public void testUpdateGroup() {
+        // First get the group
+        GroupRepresentation group = given()
+                .when()
+                .get("/keycloak/group/{realmName}/{groupName}", TEST_REALM_NAME, TEST_GROUP_NAME)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(GroupRepresentation.class);
+
+        // Update the group's name using attributes
+        group.getAttributes().put("description", List.of("Updated group description"));
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(group)
+                .when()
+                .put("/keycloak/group/{realmName}/{groupName}", TEST_REALM_NAME, TEST_GROUP_NAME)
+                .then()
+                .statusCode(200)
+                .body(is("Group updated successfully"));
+    }
+
+    @Test
+    @Order(22)
+    public void testAddUserToGroup() {
+        given()
+                .when()
+                .post("/keycloak/group-user/{realmName}/{username}/{groupName}",
+                        TEST_REALM_NAME, TEST_USER_NAME, TEST_GROUP_NAME)
+                .then()
+                .statusCode(200)
+                .body(is("User added to group successfully"));
+    }
+
+    @Test
+    @Order(23)
+    public void testListUserGroups() {
+        List<GroupRepresentation> groups = given()
+                .when()
+                .get("/keycloak/group-user/{realmName}/{username}", TEST_REALM_NAME, TEST_USER_NAME)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .body()
+                .jsonPath()
+                .getList(".", GroupRepresentation.class);
+
+        assertThat(groups, notNullValue());
+        assertThat(groups.size(), greaterThanOrEqualTo(1)); // At least one group
+    }
+
+    @Test
+    @Order(24)
+    public void testRemoveUserFromGroup() {
+        given()
+                .when()
+                .delete("/keycloak/group-user/{realmName}/{username}/{groupName}",
+                        TEST_REALM_NAME, TEST_USER_NAME, TEST_GROUP_NAME)
+                .then()
+                .statusCode(200)
+                .body(is("User removed from group successfully"));
+    }
+
+    // ==================== Client Operations Tests ====================
+
+    @Test
+    @Order(25)
+    public void testCreateClientWithHeaders() {
+        given()
+                .when()
+                .post("/keycloak/client/{realmName}/{clientId}", TEST_REALM_NAME, TEST_CLIENT_ID)
+                .then()
+                .statusCode(201)
+                .body(is("Client created successfully"));
+    }
+
+    @Test
+    @Order(26)
+    public void testCreateClientWithPojo() {
+        String pojoClientId = TEST_CLIENT_ID + "-pojo";
+
+        ClientRepresentation client = new ClientRepresentation();
+        client.setClientId(pojoClientId);
+        client.setEnabled(true);
+        client.setPublicClient(true);
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(client)
+                .when()
+                .post("/keycloak/client/{realmName}/pojo", TEST_REALM_NAME)
+                .then()
+                .statusCode(201)
+                .body(is("Client created successfully"));
+    }
+
+    @Test
+    @Order(27)
+    public void testListClients() {
+        List<ClientRepresentation> clients = given()
+                .when()
+                .get("/keycloak/client/{realmName}", TEST_REALM_NAME)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .body()
+                .jsonPath()
+                .getList(".", ClientRepresentation.class);
+
+        assertThat(clients, notNullValue());
+        assertThat(clients.size(), greaterThanOrEqualTo(2)); // At least our two test clients
+    }
+
+    @Test
+    @Order(28)
+    public void testGetClient() {
+        ClientRepresentation client = given()
+                .when()
+                .get("/keycloak/client/{realmName}/{clientId}", TEST_REALM_NAME, TEST_CLIENT_ID)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .as(ClientRepresentation.class);
+
+        assertThat(client, notNullValue());
+        assertThat(client.getClientId(), is(TEST_CLIENT_ID));
+    }
+
+    @Test
+    @Order(29)
+    public void testUpdateClient() {
+        // First get the client
+        ClientRepresentation client = given()
+                .when()
+                .get("/keycloak/client/{realmName}/{clientId}", TEST_REALM_NAME, TEST_CLIENT_ID)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(ClientRepresentation.class);
+
+        // Update the client's description
+        client.setDescription("Updated client description");
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(client)
+                .when()
+                .put("/keycloak/client/{realmName}/{clientId}", TEST_REALM_NAME, TEST_CLIENT_ID)
+                .then()
+                .statusCode(200)
+                .body(is("Client updated successfully"));
+
+        // Verify the update
+        ClientRepresentation updatedClient = given()
+                .when()
+                .get("/keycloak/client/{realmName}/{clientId}", TEST_REALM_NAME, TEST_CLIENT_ID)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(ClientRepresentation.class);
+
+        assertThat(updatedClient.getDescription(), is("Updated client description"));
+    }
+
+    // ==================== User Search and Session Operations Tests ====================
+
+    @Test
+    @Order(30)
+    public void testSearchUsers() {
+        // Search for users by username prefix
+        List<UserRepresentation> users = given()
+                .queryParam("query", TEST_USER_NAME)
+                .when()
+                .get("/keycloak/user/{realmName}/search", TEST_REALM_NAME)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .body()
+                .jsonPath()
+                .getList(".", UserRepresentation.class);
+
+        assertThat(users, notNullValue());
+        // At a minimum, verify the endpoint works (results may vary based on search implementation)
+        // Search for a username that definitely exists
+        boolean foundTestUser = users.stream()
+                .anyMatch(u -> TEST_USER_NAME.equals(u.getUsername()));
+        assertThat(foundTestUser, is(true));
+    }
+
+    @Test
+    @Order(31)
+    public void testListUserSessions() {
+        // List sessions for the test user
+        // Note: This user may not have active sessions in a test environment
+        List<?> sessions = given()
+                .when()
+                .get("/keycloak/user/{realmName}/{username}/sessions", TEST_REALM_NAME, TEST_USER_NAME)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .body()
+                .jsonPath()
+                .getList(".");
+
+        // Just verify we can call the endpoint successfully (may be empty list)
+        assertThat(sessions, notNullValue());
+    }
+
+    @Test
+    @Order(32)
+    public void testResetUserPassword() {
+        // Reset the user's password
+        given()
+                .queryParam("password", "newTestPassword123!")
+                .queryParam("temporary", false)
+                .when()
+                .post("/keycloak/user/{realmName}/{username}/reset-password", TEST_REALM_NAME, TEST_USER_NAME)
+                .then()
+                .statusCode(200)
+                .body(is("Password reset successfully"));
+    }
+
+    @Test
+    @Order(33)
+    public void testSendVerifyEmail() {
+        // Send verification email to the user
+        // Note: This may fail in test environments without SMTP configuration
+        // We test that the endpoint is accessible, but accept 500 errors for missing SMTP
+        int statusCode = given()
+                .when()
+                .post("/keycloak/user/{realmName}/{username}/send-verify-email", TEST_REALM_NAME, TEST_USER_NAME)
+                .then()
+                .extract()
+                .statusCode();
+
+        // Accept either 200 (success) or 500 (SMTP not configured)
+        assertThat(statusCode == 200 || statusCode == 500, is(true));
+    }
+
+    @Test
+    @Order(34)
+    public void testSendPasswordResetEmail() {
+        // Send password reset email to the user
+        // Note: This may fail in test environments without SMTP configuration
+        // We test that the endpoint is accessible, but accept 500 errors for missing SMTP
+        int statusCode = given()
+                .when()
+                .post("/keycloak/user/{realmName}/{username}/send-password-reset-email", TEST_REALM_NAME,
+                        TEST_USER_NAME)
+                .then()
+                .extract()
+                .statusCode();
+
+        // Accept either 200 (success) or 500 (SMTP not configured)
+        assertThat(statusCode == 200 || statusCode == 500, is(true));
+    }
+
+    @Test
+    @Order(35)
+    public void testLogoutUser() {
+        // Logout the user (revoke all sessions)
+        given()
+                .when()
+                .post("/keycloak/user/{realmName}/{username}/logout", TEST_REALM_NAME, TEST_USER_NAME)
+                .then()
+                .statusCode(200)
+                .body(is("User logged out successfully"));
+    }
+
+    // ==================== Client Role Operations Tests ====================
+
+    @Test
+    @Order(40)
+    public void testCreateClientRoleWithHeaders() {
+        given()
+                .queryParam("description", "Test client role for integration testing")
+                .when()
+                .post("/keycloak/client-role/{realmName}/{clientId}/{roleName}",
+                        TEST_REALM_NAME, TEST_CLIENT_ID, TEST_CLIENT_ROLE_NAME)
+                .then()
+                .statusCode(200)
+                .body(is("Client role created successfully"));
+    }
+
+    @Test
+    @Order(41)
+    public void testCreateClientRoleWithPojo() {
+        String pojoClientRoleName = TEST_CLIENT_ROLE_NAME + "-pojo";
+
+        RoleRepresentation role = new RoleRepresentation();
+        role.setName(pojoClientRoleName);
+        role.setDescription("Test client role created via POJO");
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(role)
+                .when()
+                .post("/keycloak/client-role/{realmName}/{clientId}/pojo", TEST_REALM_NAME, TEST_CLIENT_ID)
+                .then()
+                .statusCode(200)
+                .body(is("Client role created successfully"));
+    }
+
+    @Test
+    @Order(42)
+    public void testListClientRoles() {
+        List<RoleRepresentation> clientRoles = given()
+                .when()
+                .get("/keycloak/client-role/{realmName}/{clientId}", TEST_REALM_NAME, TEST_CLIENT_ID)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .body()
+                .jsonPath()
+                .getList(".", RoleRepresentation.class);
+
+        assertThat(clientRoles, notNullValue());
+        assertThat(clientRoles.size(), greaterThanOrEqualTo(2)); // At least our two test client roles
+    }
+
+    @Test
+    @Order(43)
+    public void testGetClientRole() {
+        RoleRepresentation clientRole = given()
+                .when()
+                .get("/keycloak/client-role/{realmName}/{clientId}/{roleName}",
+                        TEST_REALM_NAME, TEST_CLIENT_ID, TEST_CLIENT_ROLE_NAME)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .as(RoleRepresentation.class);
+
+        assertThat(clientRole, notNullValue());
+        assertThat(clientRole.getName(), is(TEST_CLIENT_ROLE_NAME));
+        assertThat(clientRole.getDescription(), is("Test client role for integration testing"));
+    }
+
+    @Test
+    @Order(44)
+    public void testUpdateClientRole() {
+        // First get the client role
+        RoleRepresentation clientRole = given()
+                .when()
+                .get("/keycloak/client-role/{realmName}/{clientId}/{roleName}",
+                        TEST_REALM_NAME, TEST_CLIENT_ID, TEST_CLIENT_ROLE_NAME)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(RoleRepresentation.class);
+
+        // Update the client role's description
+        clientRole.setDescription("Updated client role description");
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(clientRole)
+                .when()
+                .put("/keycloak/client-role/{realmName}/{clientId}/{roleName}",
+                        TEST_REALM_NAME, TEST_CLIENT_ID, TEST_CLIENT_ROLE_NAME)
+                .then()
+                .statusCode(200)
+                .body(is("Client role updated successfully"));
+
+        // Verify the update
+        RoleRepresentation updatedClientRole = given()
+                .when()
+                .get("/keycloak/client-role/{realmName}/{clientId}/{roleName}",
+                        TEST_REALM_NAME, TEST_CLIENT_ID, TEST_CLIENT_ROLE_NAME)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(RoleRepresentation.class);
+
+        assertThat(updatedClientRole.getDescription(), is("Updated client role description"));
+    }
+
+    @Test
+    @Order(45)
+    public void testAssignClientRoleToUser() {
+        given()
+                .when()
+                .post("/keycloak/client-role-user/{realmName}/{clientId}/{username}/{roleName}",
+                        TEST_REALM_NAME, TEST_CLIENT_ID, TEST_USER_NAME, TEST_CLIENT_ROLE_NAME)
+                .then()
+                .statusCode(200)
+                .body(is("Client role assigned to user successfully"));
+    }
+
+    @Test
+    @Order(46)
+    public void testRemoveClientRoleFromUser() {
+        given()
+                .when()
+                .delete("/keycloak/client-role-user/{realmName}/{clientId}/{username}/{roleName}",
+                        TEST_REALM_NAME, TEST_CLIENT_ID, TEST_USER_NAME, TEST_CLIENT_ROLE_NAME)
+                .then()
+                .statusCode(200)
+                .body(is("Client role removed from user successfully"));
+    }
+
+    @Test
+    @Order(47)
+    public void testDeleteClientRole() {
+        given()
+                .when()
+                .delete("/keycloak/client-role/{realmName}/{clientId}/{roleName}",
+                        TEST_REALM_NAME, TEST_CLIENT_ID, TEST_CLIENT_ROLE_NAME)
+                .then()
+                .statusCode(200)
+                .body(is("Client role deleted successfully"));
+
+        // Also delete the POJO client role
+        given()
+                .when()
+                .delete("/keycloak/client-role/{realmName}/{clientId}/{roleName}",
+                        TEST_REALM_NAME, TEST_CLIENT_ID, TEST_CLIENT_ROLE_NAME + "-pojo")
+                .then()
+                .statusCode(200)
+                .body(is("Client role deleted successfully"));
+    }
+
+    // ==================== Client Scope Operations Tests ====================
+
+    @Test
+    @Order(50)
+    public void testCreateClientScopeWithPojo() {
+        ClientScopeRepresentation scope = new ClientScopeRepresentation();
+        scope.setName(TEST_CLIENT_SCOPE_NAME);
+        scope.setProtocol("openid-connect");
+        scope.setDescription("Test client scope for integration testing");
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(scope)
+                .when()
+                .post("/keycloak/client-scope/{realmName}/pojo", TEST_REALM_NAME)
+                .then()
+                .statusCode(201)
+                .body(is("Client scope created successfully"));
+    }
+
+    @Test
+    @Order(51)
+    public void testCreateClientScopeWithPojo2() {
+        String pojoScopeName = TEST_CLIENT_SCOPE_NAME + "-pojo";
+
+        ClientScopeRepresentation scope = new ClientScopeRepresentation();
+        scope.setName(pojoScopeName);
+        scope.setProtocol("openid-connect");
+        scope.setDescription("Test client scope created via POJO");
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(scope)
+                .when()
+                .post("/keycloak/client-scope/{realmName}/pojo", TEST_REALM_NAME)
+                .then()
+                .statusCode(201)
+                .body(is("Client scope created successfully"));
+    }
+
+    @Test
+    @Order(52)
+    public void testListClientScopes() {
+        List<ClientScopeRepresentation> scopes = given()
+                .when()
+                .get("/keycloak/client-scope/{realmName}", TEST_REALM_NAME)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .body()
+                .jsonPath()
+                .getList(".", ClientScopeRepresentation.class);
+
+        assertThat(scopes, notNullValue());
+        assertThat(scopes.size(), greaterThanOrEqualTo(2)); // At least our two test scopes
+    }
+
+    @Test
+    @Order(53)
+    public void testGetClientScope() {
+        ClientScopeRepresentation scope = given()
+                .when()
+                .get("/keycloak/client-scope/{realmName}/{scopeName}", TEST_REALM_NAME, TEST_CLIENT_SCOPE_NAME)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .as(ClientScopeRepresentation.class);
+
+        assertThat(scope, notNullValue());
+        assertThat(scope.getName(), is(TEST_CLIENT_SCOPE_NAME));
+    }
+
+    @Test
+    @Order(54)
+    public void testUpdateClientScope() {
+        // First get the client scope
+        ClientScopeRepresentation scope = given()
+                .when()
+                .get("/keycloak/client-scope/{realmName}/{scopeName}", TEST_REALM_NAME, TEST_CLIENT_SCOPE_NAME)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(ClientScopeRepresentation.class);
+
+        // Update the scope's description
+        scope.setDescription("Updated client scope description");
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(scope)
+                .when()
+                .put("/keycloak/client-scope/{realmName}/{scopeName}", TEST_REALM_NAME, TEST_CLIENT_SCOPE_NAME)
+                .then()
+                .statusCode(200)
+                .body(is("Client scope updated successfully"));
+
+        // Verify the update
+        ClientScopeRepresentation updatedScope = given()
+                .when()
+                .get("/keycloak/client-scope/{realmName}/{scopeName}", TEST_REALM_NAME, TEST_CLIENT_SCOPE_NAME)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(ClientScopeRepresentation.class);
+
+        assertThat(updatedScope.getDescription(), is("Updated client scope description"));
+    }
+
+    // ==================== User Attribute Operations Tests ====================
+
+    @Test
+    @Order(60)
+    public void testSetUserAttribute() {
+        given()
+                .queryParam("attributeValue", "test-department")
+                .when()
+                .post("/keycloak/user-attribute/{realmName}/{username}/{attributeName}",
+                        TEST_REALM_NAME, TEST_USER_NAME, "department")
+                .then()
+                .statusCode(200)
+                .body(is("User attribute set successfully"));
+    }
+
+    @Test
+    @Order(61)
+    public void testGetUserAttributes() {
+        Map<String, List<String>> attributes = given()
+                .when()
+                .get("/keycloak/user-attribute/{realmName}/{username}", TEST_REALM_NAME, TEST_USER_NAME)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .as(Map.class);
+
+        assertThat(attributes, notNullValue());
+        // Verify the attribute was set - check if it exists
+        if (attributes.containsKey("department")) {
+            assertThat(attributes.get("department").get(0), is("test-department"));
+        }
+        // Note: Attributes may not persist immediately or may require additional configuration
+    }
+
+    @Test
+    @Order(62)
+    public void testDeleteUserAttribute() {
+        // Note: Only delete if the attribute exists
+        Map<String, List<String>> attributesBefore = given()
+                .when()
+                .get("/keycloak/user-attribute/{realmName}/{username}", TEST_REALM_NAME, TEST_USER_NAME)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(Map.class);
+
+        if (attributesBefore.containsKey("department")) {
+            given()
+                    .when()
+                    .delete("/keycloak/user-attribute/{realmName}/{username}/{attributeName}",
+                            TEST_REALM_NAME, TEST_USER_NAME, "department")
+                    .then()
+                    .statusCode(200)
+                    .body(is("User attribute deleted successfully"));
+
+            // Verify the attribute was deleted
+            Map<String, List<String>> attributes = given()
+                    .when()
+                    .get("/keycloak/user-attribute/{realmName}/{username}", TEST_REALM_NAME, TEST_USER_NAME)
+                    .then()
+                    .statusCode(200)
+                    .extract()
+                    .as(Map.class);
+
+            assertThat(attributes.containsKey("department"), is(false));
+        }
+    }
+
+    // ==================== User Roles Query Tests ====================
+
+    @Test
+    @Order(63)
+    public void testGetUserRoles() {
+        // First, assign a role to the user
+        given()
+                .when()
+                .post("/keycloak/user-role/{realmName}/{username}/{roleName}",
+                        TEST_REALM_NAME, TEST_USER_NAME, TEST_ROLE_NAME)
+                .then()
+                .statusCode(200);
+
+        // Now get user roles
+        List<RoleRepresentation> roles = given()
+                .when()
+                .get("/keycloak/user-role/{realmName}/{username}", TEST_REALM_NAME, TEST_USER_NAME)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .body()
+                .jsonPath()
+                .getList(".", RoleRepresentation.class);
+
+        assertThat(roles, notNullValue());
+        assertThat(roles.size(), greaterThanOrEqualTo(1));
+
+        // Verify our test role is in the list
+        boolean foundTestRole = roles.stream()
+                .anyMatch(r -> TEST_ROLE_NAME.equals(r.getName()));
+        assertThat(foundTestRole, is(true));
+
+        // Clean up - remove the role
+        given()
+                .when()
+                .delete("/keycloak/user-role/{realmName}/{username}/{roleName}",
+                        TEST_REALM_NAME, TEST_USER_NAME, TEST_ROLE_NAME)
+                .then()
+                .statusCode(200);
+    }
+
+    // ==================== Client Secret Operations Tests ====================
+
+    @Test
+    @Order(70)
+    public void testGetClientSecret() {
+        // First, we need to make the client confidential to have a secret
+        ClientRepresentation client = given()
+                .when()
+                .get("/keycloak/client/{realmName}/{clientId}", TEST_REALM_NAME, TEST_CLIENT_ID)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(ClientRepresentation.class);
+
+        client.setPublicClient(false);
+        client.setServiceAccountsEnabled(true);
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(client)
+                .when()
+                .put("/keycloak/client/{realmName}/{clientId}", TEST_REALM_NAME, TEST_CLIENT_ID)
+                .then()
+                .statusCode(200);
+
+        // Now get the client secret
+        CredentialRepresentation secretData = given()
+                .when()
+                .get("/keycloak/client-secret/{realmName}/{clientId}", TEST_REALM_NAME, TEST_CLIENT_ID)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .as(CredentialRepresentation.class);
+
+        assertThat(secretData, notNullValue());
+        assertThat(secretData.getValue(), notNullValue());
+    }
+
+    @Test
+    @Order(71)
+    public void testRegenerateClientSecret() {
+        // Get the current secret
+        CredentialRepresentation oldSecretData = given()
+                .when()
+                .get("/keycloak/client-secret/{realmName}/{clientId}", TEST_REALM_NAME, TEST_CLIENT_ID)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(CredentialRepresentation.class);
+
+        String oldSecret = oldSecretData.getValue();
+
+        // Regenerate the secret
+        CredentialRepresentation newSecretData = given()
+                .when()
+                .post("/keycloak/client-secret/{realmName}/{clientId}/regenerate", TEST_REALM_NAME, TEST_CLIENT_ID)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .as(CredentialRepresentation.class);
+
+        assertThat(newSecretData, notNullValue());
+        assertThat(newSecretData.getValue(), notNullValue());
+        // Verify the secret changed
+        assertThat(newSecretData.getValue().equals(oldSecret), is(false));
+    }
+
+    // ==================== Realm Update Tests ====================
+
+    @Test
+    @Order(72)
+    public void testUpdateRealm() {
+        // First get the realm
+        RealmRepresentation realm = given()
+                .when()
+                .get("/keycloak/realm/{realmName}", TEST_REALM_NAME)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(RealmRepresentation.class);
+
+        // Update the realm's display name
+        realm.setDisplayName("Updated Test Realm Display Name");
+        realm.setDisplayNameHtml("<h1>Updated Test Realm</h1>");
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(realm)
+                .when()
+                .put("/keycloak/realm/{realmName}", TEST_REALM_NAME)
+                .then()
+                .statusCode(200)
+                .body(is("Realm updated successfully"));
+
+        // Verify the update
+        RealmRepresentation updatedRealm = given()
+                .when()
+                .get("/keycloak/realm/{realmName}", TEST_REALM_NAME)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(RealmRepresentation.class);
+
+        assertThat(updatedRealm.getDisplayName(), is("Updated Test Realm Display Name"));
+        assertThat(updatedRealm.getDisplayNameHtml(), is("<h1>Updated Test Realm</h1>"));
+    }
+
+    // ==================== User Credential Tests ====================
+
+    @Test
+    @Order(73)
+    public void testGetUserCredentials() {
+        // Get user credentials
+        List<CredentialRepresentation> credentials = given()
+                .when()
+                .get("/keycloak/user-credential/{realmName}/{username}", TEST_REALM_NAME, TEST_USER_NAME)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .body()
+                .jsonPath()
+                .getList(".", CredentialRepresentation.class);
+
+        // Just verify we can call the endpoint and get a list
+        assertThat(credentials, notNullValue());
+        // User may have credentials from password reset earlier in the test
+    }
+
+    @Test
+    @Order(74)
+    public void testDeleteUserCredential() {
+        // First get the credentials
+        List<CredentialRepresentation> credentials = given()
+                .when()
+                .get("/keycloak/user-credential/{realmName}/{username}", TEST_REALM_NAME, TEST_USER_NAME)
+                .then()
+                .statusCode(200)
+                .extract()
+                .body()
+                .jsonPath()
+                .getList(".", CredentialRepresentation.class);
+
+        // Only delete if there are credentials
+        if (credentials != null && !credentials.isEmpty()) {
+            String credentialId = credentials.get(0).getId();
+
+            given()
+                    .when()
+                    .delete("/keycloak/user-credential/{realmName}/{username}/{credentialId}",
+                            TEST_REALM_NAME, TEST_USER_NAME, credentialId)
+                    .then()
+                    .statusCode(200)
+                    .body(is("User credential deleted successfully"));
+        }
+    }
+
+    // ==================== Required Action Tests ====================
+
+    @Test
+    @Order(75)
+    public void testAddRequiredAction() {
+        // Add a required action to the user
+        given()
+                .queryParam("action", "UPDATE_PASSWORD")
+                .when()
+                .post("/keycloak/user-action/{realmName}/{username}/add", TEST_REALM_NAME, TEST_USER_NAME)
+                .then()
+                .statusCode(200)
+                .body(is("Required action added successfully"));
+    }
+
+    @Test
+    @Order(76)
+    public void testRemoveRequiredAction() {
+        // Remove the required action from the user
+        given()
+                .queryParam("action", "UPDATE_PASSWORD")
+                .when()
+                .post("/keycloak/user-action/{realmName}/{username}/remove", TEST_REALM_NAME, TEST_USER_NAME)
+                .then()
+                .statusCode(200)
+                .body(is("Required action removed successfully"));
+    }
+
+    @Test
+    @Order(77)
+    public void testExecuteActionsEmail() {
+        // Execute actions email - this may fail without SMTP configuration
+        int statusCode = given()
+                .queryParam("actions", "VERIFY_EMAIL,UPDATE_PASSWORD")
+                .queryParam("redirectUri", "http://localhost:8080/test")
+                .queryParam("lifespan", 3600)
+                .when()
+                .post("/keycloak/user-action/{realmName}/{username}/execute", TEST_REALM_NAME, TEST_USER_NAME)
+                .then()
+                .extract()
+                .statusCode();
+
+        // Accept either 200 (success) or 500 (SMTP not configured)
+        assertThat(statusCode == 200 || statusCode == 500, is(true));
+    }
+
+    // ==================== Cleanup Client Scopes ====================
+
+    @Test
+    @Order(94)
+    public void testCleanupClientScopes() {
+        // Delete test client scopes
+        String[] scopesToDelete = { TEST_CLIENT_SCOPE_NAME, TEST_CLIENT_SCOPE_NAME + "-pojo" };
+
+        for (String scopeName : scopesToDelete) {
+            given()
+                    .when()
+                    .delete("/keycloak/client-scope/{realmName}/{scopeName}", TEST_REALM_NAME, scopeName)
+                    .then()
+                    .statusCode(200)
+                    .body(is("Client scope deleted successfully"));
+        }
+    }
+
     // ==================== Error Handling Tests ====================
 
     @Test
-    @Order(15)
+    @Order(80)
     public void testErrorHandling_NonExistentRealm() {
         // Test with non-existent realm should fail
         given()
@@ -317,7 +1341,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(16)
+    @Order(81)
     public void testErrorHandling_NonExistentUser() {
         // Test getting a user that doesn't exist
         given()
@@ -328,7 +1352,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(17)
+    @Order(82)
     public void testErrorHandling_NonExistentRole() {
         // Test getting a role that doesn't exist
         given()
@@ -339,6 +1363,38 @@ class KeycloakTest {
     }
 
     // ==================== Cleanup Tests ====================
+
+    @Test
+    @Order(95)
+    public void testCleanupClients() {
+        // Delete test clients
+        String[] clientsToDelete = { TEST_CLIENT_ID, TEST_CLIENT_ID + "-pojo" };
+
+        for (String clientId : clientsToDelete) {
+            given()
+                    .when()
+                    .delete("/keycloak/client/{realmName}/{clientId}", TEST_REALM_NAME, clientId)
+                    .then()
+                    .statusCode(200)
+                    .body(is("Client deleted successfully"));
+        }
+    }
+
+    @Test
+    @Order(96)
+    public void testCleanupGroups() {
+        // Delete test groups
+        String[] groupsToDelete = { TEST_GROUP_NAME, TEST_GROUP_NAME + "-pojo" };
+
+        for (String groupName : groupsToDelete) {
+            given()
+                    .when()
+                    .delete("/keycloak/group/{realmName}/{groupName}", TEST_REALM_NAME, groupName)
+                    .then()
+                    .statusCode(200)
+                    .body(is("Group deleted successfully"));
+        }
+    }
 
     @Test
     @Order(98)

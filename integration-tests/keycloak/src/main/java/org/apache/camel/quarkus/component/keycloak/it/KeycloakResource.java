@@ -40,7 +40,11 @@ import org.apache.camel.component.mock.MockEndpoint;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 import org.keycloak.representations.idm.AdminEventRepresentation;
+import org.keycloak.representations.idm.ClientRepresentation;
+import org.keycloak.representations.idm.ClientScopeRepresentation;
+import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.EventRepresentation;
+import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
@@ -134,6 +138,26 @@ public class KeycloakResource {
                 null,
                 headers,
                 RealmRepresentation.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/realm/{realmName}")
+    @jakarta.ws.rs.PUT
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response updateRealm(
+            @PathParam("realmName") String realmName,
+            RealmRepresentation realm) {
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=updateRealm&pojoRequest=true",
+                realm,
+                headers,
+                String.class);
 
         return Response.ok(result).build();
     }
@@ -297,6 +321,172 @@ public class KeycloakResource {
         return Response.ok("User deleted successfully").build();
     }
 
+    @Path("/user/{realmName}/{username}")
+    @jakarta.ws.rs.PUT
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response updateUser(
+            @PathParam("realmName") String realmName,
+            @PathParam("username") String username,
+            UserRepresentation user) {
+
+        // First, get the user ID by username
+        String userId = getUserIdByUsername(realmName, username);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.USER_ID, userId);
+
+        // Set the ID in the user object
+        user.setId(userId);
+
+        producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=updateUser&pojoRequest=true",
+                user,
+                headers);
+
+        return Response.ok("User updated successfully").build();
+    }
+
+    @Path("/user/{realmName}/search")
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response searchUsers(
+            @PathParam("realmName") String realmName,
+            @QueryParam("query") String query) {
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.SEARCH_QUERY, query);
+
+        @SuppressWarnings("unchecked")
+        List<UserRepresentation> result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=searchUsers",
+                null,
+                headers,
+                List.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/user/{realmName}/{username}/sessions")
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response listUserSessions(
+            @PathParam("realmName") String realmName,
+            @PathParam("username") String username) {
+
+        // First, get the user ID by username
+        String userId = getUserIdByUsername(realmName, username);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.USER_ID, userId);
+
+        @SuppressWarnings("unchecked")
+        List result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=listUserSessions",
+                null,
+                headers,
+                List.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/user/{realmName}/{username}/logout")
+    @POST
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response logoutUser(
+            @PathParam("realmName") String realmName,
+            @PathParam("username") String username) {
+
+        // First, get the user ID by username
+        String userId = getUserIdByUsername(realmName, username);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.USER_ID, userId);
+
+        producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=logoutUser",
+                null,
+                headers);
+
+        return Response.ok("User logged out successfully").build();
+    }
+
+    @Path("/user/{realmName}/{username}/reset-password")
+    @POST
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response resetUserPassword(
+            @PathParam("realmName") String realmName,
+            @PathParam("username") String username,
+            @QueryParam("password") String password,
+            @QueryParam("temporary") Boolean temporary) {
+
+        // First, get the user ID by username
+        String userId = getUserIdByUsername(realmName, username);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.USER_ID, userId);
+        headers.put(KeycloakConstants.USER_PASSWORD, password);
+        if (temporary != null) {
+            headers.put(KeycloakConstants.PASSWORD_TEMPORARY, temporary);
+        }
+
+        producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=resetUserPassword",
+                null,
+                headers);
+
+        return Response.ok("Password reset successfully").build();
+    }
+
+    @Path("/user/{realmName}/{username}/send-verify-email")
+    @POST
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response sendVerifyEmail(
+            @PathParam("realmName") String realmName,
+            @PathParam("username") String username) {
+
+        // First, get the user ID by username
+        String userId = getUserIdByUsername(realmName, username);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.USER_ID, userId);
+
+        producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=sendVerifyEmail",
+                null,
+                headers);
+
+        return Response.ok("Verify email sent successfully").build();
+    }
+
+    @Path("/user/{realmName}/{username}/send-password-reset-email")
+    @POST
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response sendPasswordResetEmail(
+            @PathParam("realmName") String realmName,
+            @PathParam("username") String username) {
+
+        // First, get the user ID by username
+        String userId = getUserIdByUsername(realmName, username);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.USER_ID, userId);
+
+        producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=sendPasswordResetEmail",
+                null,
+                headers);
+
+        return Response.ok("Password reset email sent successfully").build();
+    }
+
     // ==================== Role Operations ====================
 
     @Path("/role/{realmName}/{roleName}")
@@ -400,6 +590,31 @@ public class KeycloakResource {
         return Response.ok(result).build();
     }
 
+    @Path("/role/{realmName}/{roleName}")
+    @jakarta.ws.rs.PUT
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response updateRole(
+            @PathParam("realmName") String realmName,
+            @PathParam("roleName") String roleName,
+            RoleRepresentation role) {
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.ROLE_NAME, roleName);
+
+        // Set the role name in the object
+        role.setName(roleName);
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=updateRole&pojoRequest=true",
+                role,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
     // ==================== User-Role Operations ====================
 
     @Path("/user-role/{realmName}/{username}/{roleName}")
@@ -448,6 +663,1097 @@ public class KeycloakResource {
                 null,
                 headers,
                 String.class);
+
+        return Response.ok(result).build();
+    }
+
+    // ==================== Group Operations ====================
+
+    @Path("/group/{realmName}/{groupName}")
+    @POST
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response createGroupWithHeaders(
+            @PathParam("realmName") String realmName,
+            @PathParam("groupName") String groupName) {
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.GROUP_NAME, groupName);
+
+        Object result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=createGroup",
+                null,
+                headers);
+
+        if (result instanceof jakarta.ws.rs.core.Response) {
+            jakarta.ws.rs.core.Response jaxrsResponse = (jakarta.ws.rs.core.Response) result;
+            return Response.status(jaxrsResponse.getStatus())
+                    .entity("Group created successfully")
+                    .build();
+        }
+
+        return Response.ok("Group created successfully").build();
+    }
+
+    @Path("/group/{realmName}/pojo")
+    @POST
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response createGroupWithPojo(
+            @PathParam("realmName") String realmName,
+            GroupRepresentation group) {
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+
+        Object result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=createGroup&pojoRequest=true",
+                group,
+                headers);
+
+        if (result instanceof jakarta.ws.rs.core.Response) {
+            jakarta.ws.rs.core.Response jaxrsResponse = (jakarta.ws.rs.core.Response) result;
+            return Response.status(jaxrsResponse.getStatus())
+                    .entity("Group created successfully")
+                    .build();
+        }
+
+        return Response.ok("Group created successfully").build();
+    }
+
+    @Path("/group/{realmName}")
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response listGroups(@PathParam("realmName") String realmName) {
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+
+        @SuppressWarnings("unchecked")
+        List<GroupRepresentation> result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=listGroups",
+                null,
+                headers,
+                List.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/group/{realmName}/{groupName}")
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getGroup(
+            @PathParam("realmName") String realmName,
+            @PathParam("groupName") String groupName) {
+
+        // First, list groups to find the group ID by name
+        String groupId = getGroupIdByName(realmName, groupName);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.GROUP_ID, groupId);
+
+        GroupRepresentation result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=getGroup",
+                null,
+                headers,
+                GroupRepresentation.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/group/{realmName}/{groupName}")
+    @jakarta.ws.rs.PUT
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response updateGroup(
+            @PathParam("realmName") String realmName,
+            @PathParam("groupName") String groupName,
+            GroupRepresentation group) {
+
+        // First, get the group ID by name
+        String groupId = getGroupIdByName(realmName, groupName);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.GROUP_ID, groupId);
+
+        // Set the ID in the group object
+        group.setId(groupId);
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=updateGroup&pojoRequest=true",
+                group,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/group/{realmName}/{groupName}")
+    @DELETE
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response deleteGroup(
+            @PathParam("realmName") String realmName,
+            @PathParam("groupName") String groupName) {
+
+        // First, get the group ID by name
+        String groupId = getGroupIdByName(realmName, groupName);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.GROUP_ID, groupId);
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=deleteGroup",
+                null,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
+    /**
+     * Helper method to get group ID by name
+     */
+    private String getGroupIdByName(String realmName, String groupName) {
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+
+        @SuppressWarnings("unchecked")
+        List<GroupRepresentation> groups = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=listGroups",
+                null,
+                headers,
+                List.class);
+
+        return groups.stream()
+                .filter(g -> groupName.equals(g.getName()))
+                .map(GroupRepresentation::getId)
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Group not found: " + groupName));
+    }
+
+    // ==================== Group-User Operations ====================
+
+    @Path("/group-user/{realmName}/{username}/{groupName}")
+    @POST
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response addUserToGroup(
+            @PathParam("realmName") String realmName,
+            @PathParam("username") String username,
+            @PathParam("groupName") String groupName) {
+
+        // Get user ID and group ID
+        String userId = getUserIdByUsername(realmName, username);
+        String groupId = getGroupIdByName(realmName, groupName);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.USER_ID, userId);
+        headers.put(KeycloakConstants.GROUP_ID, groupId);
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=addUserToGroup",
+                null,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/group-user/{realmName}/{username}/{groupName}")
+    @DELETE
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response removeUserFromGroup(
+            @PathParam("realmName") String realmName,
+            @PathParam("username") String username,
+            @PathParam("groupName") String groupName) {
+
+        // Get user ID and group ID
+        String userId = getUserIdByUsername(realmName, username);
+        String groupId = getGroupIdByName(realmName, groupName);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.USER_ID, userId);
+        headers.put(KeycloakConstants.GROUP_ID, groupId);
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=removeUserFromGroup",
+                null,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/group-user/{realmName}/{username}")
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response listUserGroups(
+            @PathParam("realmName") String realmName,
+            @PathParam("username") String username) {
+
+        // Get user ID
+        String userId = getUserIdByUsername(realmName, username);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.USER_ID, userId);
+
+        @SuppressWarnings("unchecked")
+        List<GroupRepresentation> result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=listUserGroups",
+                null,
+                headers,
+                List.class);
+
+        return Response.ok(result).build();
+    }
+
+    // ==================== Client Operations ====================
+
+    @Path("/client/{realmName}/{clientId}")
+    @POST
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response createClientWithHeaders(
+            @PathParam("realmName") String realmName,
+            @PathParam("clientId") String clientId) {
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.CLIENT_ID, clientId);
+
+        Object result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=createClient",
+                null,
+                headers);
+
+        if (result instanceof jakarta.ws.rs.core.Response) {
+            jakarta.ws.rs.core.Response jaxrsResponse = (jakarta.ws.rs.core.Response) result;
+            return Response.status(jaxrsResponse.getStatus())
+                    .entity("Client created successfully")
+                    .build();
+        }
+
+        return Response.ok("Client created successfully").build();
+    }
+
+    @Path("/client/{realmName}/pojo")
+    @POST
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response createClientWithPojo(
+            @PathParam("realmName") String realmName,
+            ClientRepresentation client) {
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+
+        Object result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=createClient&pojoRequest=true",
+                client,
+                headers);
+
+        if (result instanceof jakarta.ws.rs.core.Response) {
+            jakarta.ws.rs.core.Response jaxrsResponse = (jakarta.ws.rs.core.Response) result;
+            return Response.status(jaxrsResponse.getStatus())
+                    .entity("Client created successfully")
+                    .build();
+        }
+
+        return Response.ok("Client created successfully").build();
+    }
+
+    @Path("/client/{realmName}")
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response listClients(@PathParam("realmName") String realmName) {
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+
+        @SuppressWarnings("unchecked")
+        List<ClientRepresentation> result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=listClients",
+                null,
+                headers,
+                List.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/client/{realmName}/{clientId}")
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getClient(
+            @PathParam("realmName") String realmName,
+            @PathParam("clientId") String clientId) {
+
+        // First, list clients to find the client UUID by clientId
+        String clientUuid = getClientUuidByClientId(realmName, clientId);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.CLIENT_UUID, clientUuid);
+
+        ClientRepresentation result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=getClient",
+                null,
+                headers,
+                ClientRepresentation.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/client/{realmName}/{clientId}")
+    @jakarta.ws.rs.PUT
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response updateClient(
+            @PathParam("realmName") String realmName,
+            @PathParam("clientId") String clientId,
+            ClientRepresentation client) {
+
+        // First, get the client UUID by clientId
+        String clientUuid = getClientUuidByClientId(realmName, clientId);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.CLIENT_UUID, clientUuid);
+
+        // Set the ID in the client object
+        client.setId(clientUuid);
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=updateClient&pojoRequest=true",
+                client,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/client/{realmName}/{clientId}")
+    @DELETE
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response deleteClient(
+            @PathParam("realmName") String realmName,
+            @PathParam("clientId") String clientId) {
+
+        // First, get the client UUID by clientId
+        String clientUuid = getClientUuidByClientId(realmName, clientId);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.CLIENT_UUID, clientUuid);
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=deleteClient",
+                null,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
+    /**
+     * Helper method to get client UUID by clientId
+     */
+    private String getClientUuidByClientId(String realmName, String clientId) {
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+
+        @SuppressWarnings("unchecked")
+        List<ClientRepresentation> clients = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=listClients",
+                null,
+                headers,
+                List.class);
+
+        return clients.stream()
+                .filter(c -> clientId.equals(c.getClientId()))
+                .map(ClientRepresentation::getId)
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Client not found: " + clientId));
+    }
+
+    // ==================== Client Role Operations ====================
+
+    @Path("/client-role/{realmName}/{clientId}/{roleName}")
+    @POST
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response createClientRoleWithHeaders(
+            @PathParam("realmName") String realmName,
+            @PathParam("clientId") String clientId,
+            @PathParam("roleName") String roleName,
+            @QueryParam("description") String description) {
+
+        // Get client UUID
+        String clientUuid = getClientUuidByClientId(realmName, clientId);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.CLIENT_UUID, clientUuid);
+        headers.put(KeycloakConstants.ROLE_NAME, roleName);
+        if (description != null) {
+            headers.put(KeycloakConstants.ROLE_DESCRIPTION, description);
+        }
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=createClientRole",
+                null,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/client-role/{realmName}/{clientId}/pojo")
+    @POST
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response createClientRoleWithPojo(
+            @PathParam("realmName") String realmName,
+            @PathParam("clientId") String clientId,
+            RoleRepresentation role) {
+
+        // Get client UUID
+        String clientUuid = getClientUuidByClientId(realmName, clientId);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.CLIENT_UUID, clientUuid);
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=createClientRole&pojoRequest=true",
+                role,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/client-role/{realmName}/{clientId}")
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response listClientRoles(
+            @PathParam("realmName") String realmName,
+            @PathParam("clientId") String clientId) {
+
+        // Get client UUID
+        String clientUuid = getClientUuidByClientId(realmName, clientId);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.CLIENT_UUID, clientUuid);
+
+        @SuppressWarnings("unchecked")
+        List<RoleRepresentation> result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=listClientRoles",
+                null,
+                headers,
+                List.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/client-role/{realmName}/{clientId}/{roleName}")
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getClientRole(
+            @PathParam("realmName") String realmName,
+            @PathParam("clientId") String clientId,
+            @PathParam("roleName") String roleName) {
+
+        // Get client UUID
+        String clientUuid = getClientUuidByClientId(realmName, clientId);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.CLIENT_UUID, clientUuid);
+        headers.put(KeycloakConstants.ROLE_NAME, roleName);
+
+        RoleRepresentation result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=getClientRole",
+                null,
+                headers,
+                RoleRepresentation.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/client-role/{realmName}/{clientId}/{roleName}")
+    @jakarta.ws.rs.PUT
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response updateClientRole(
+            @PathParam("realmName") String realmName,
+            @PathParam("clientId") String clientId,
+            @PathParam("roleName") String roleName,
+            RoleRepresentation role) {
+
+        // Get client UUID
+        String clientUuid = getClientUuidByClientId(realmName, clientId);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.CLIENT_UUID, clientUuid);
+        headers.put(KeycloakConstants.ROLE_NAME, roleName);
+
+        // Set the role name
+        role.setName(roleName);
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=updateClientRole&pojoRequest=true",
+                role,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/client-role/{realmName}/{clientId}/{roleName}")
+    @DELETE
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response deleteClientRole(
+            @PathParam("realmName") String realmName,
+            @PathParam("clientId") String clientId,
+            @PathParam("roleName") String roleName) {
+
+        // Get client UUID
+        String clientUuid = getClientUuidByClientId(realmName, clientId);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.CLIENT_UUID, clientUuid);
+        headers.put(KeycloakConstants.ROLE_NAME, roleName);
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=deleteClientRole",
+                null,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
+    // ==================== Client Role - User Assignment Operations ====================
+
+    @Path("/client-role-user/{realmName}/{clientId}/{username}/{roleName}")
+    @POST
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response assignClientRoleToUser(
+            @PathParam("realmName") String realmName,
+            @PathParam("clientId") String clientId,
+            @PathParam("username") String username,
+            @PathParam("roleName") String roleName) {
+
+        // Get user ID and client UUID
+        String userId = getUserIdByUsername(realmName, username);
+        String clientUuid = getClientUuidByClientId(realmName, clientId);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.USER_ID, userId);
+        headers.put(KeycloakConstants.CLIENT_UUID, clientUuid);
+        headers.put(KeycloakConstants.ROLE_NAME, roleName);
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=assignClientRoleToUser",
+                null,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/client-role-user/{realmName}/{clientId}/{username}/{roleName}")
+    @DELETE
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response removeClientRoleFromUser(
+            @PathParam("realmName") String realmName,
+            @PathParam("clientId") String clientId,
+            @PathParam("username") String username,
+            @PathParam("roleName") String roleName) {
+
+        // Get user ID and client UUID
+        String userId = getUserIdByUsername(realmName, username);
+        String clientUuid = getClientUuidByClientId(realmName, clientId);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.USER_ID, userId);
+        headers.put(KeycloakConstants.CLIENT_UUID, clientUuid);
+        headers.put(KeycloakConstants.ROLE_NAME, roleName);
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=removeClientRoleFromUser",
+                null,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
+    // ==================== Client Scope Operations ====================
+
+    @Path("/client-scope/{realmName}/{scopeName}")
+    @POST
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response createClientScopeWithHeaders(
+            @PathParam("realmName") String realmName,
+            @PathParam("scopeName") String scopeName,
+            @QueryParam("protocol") String protocol,
+            @QueryParam("description") String description) {
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.CLIENT_SCOPE_NAME, scopeName);
+
+        Object result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=createClientScope",
+                null,
+                headers);
+
+        if (result instanceof jakarta.ws.rs.core.Response) {
+            jakarta.ws.rs.core.Response jaxrsResponse = (jakarta.ws.rs.core.Response) result;
+            return Response.status(jaxrsResponse.getStatus())
+                    .entity("Client scope created successfully")
+                    .build();
+        }
+
+        return Response.ok("Client scope created successfully").build();
+    }
+
+    @Path("/client-scope/{realmName}/pojo")
+    @POST
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response createClientScopeWithPojo(
+            @PathParam("realmName") String realmName,
+            ClientScopeRepresentation clientScope) {
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+
+        Object result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=createClientScope&pojoRequest=true",
+                clientScope,
+                headers);
+
+        if (result instanceof jakarta.ws.rs.core.Response) {
+            jakarta.ws.rs.core.Response jaxrsResponse = (jakarta.ws.rs.core.Response) result;
+            return Response.status(jaxrsResponse.getStatus())
+                    .entity("Client scope created successfully")
+                    .build();
+        }
+
+        return Response.ok("Client scope created successfully").build();
+    }
+
+    @Path("/client-scope/{realmName}")
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response listClientScopes(@PathParam("realmName") String realmName) {
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+
+        @SuppressWarnings("unchecked")
+        List<ClientScopeRepresentation> result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=listClientScopes",
+                null,
+                headers,
+                List.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/client-scope/{realmName}/{scopeName}")
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getClientScope(
+            @PathParam("realmName") String realmName,
+            @PathParam("scopeName") String scopeName) {
+
+        // First, list client scopes to find the scope ID by name
+        String scopeId = getClientScopeIdByName(realmName, scopeName);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.CLIENT_SCOPE_ID, scopeId);
+
+        ClientScopeRepresentation result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=getClientScope",
+                null,
+                headers,
+                ClientScopeRepresentation.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/client-scope/{realmName}/{scopeName}")
+    @jakarta.ws.rs.PUT
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response updateClientScope(
+            @PathParam("realmName") String realmName,
+            @PathParam("scopeName") String scopeName,
+            ClientScopeRepresentation clientScope) {
+
+        // First, get the client scope ID by name
+        String scopeId = getClientScopeIdByName(realmName, scopeName);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.CLIENT_SCOPE_ID, scopeId);
+
+        // Set the ID in the client scope object
+        clientScope.setId(scopeId);
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=updateClientScope&pojoRequest=true",
+                clientScope,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/client-scope/{realmName}/{scopeName}")
+    @DELETE
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response deleteClientScope(
+            @PathParam("realmName") String realmName,
+            @PathParam("scopeName") String scopeName) {
+
+        // First, get the client scope ID by name
+        String scopeId = getClientScopeIdByName(realmName, scopeName);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.CLIENT_SCOPE_ID, scopeId);
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=deleteClientScope",
+                null,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
+    /**
+     * Helper method to get client scope ID by name
+     */
+    private String getClientScopeIdByName(String realmName, String scopeName) {
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+
+        @SuppressWarnings("unchecked")
+        List<ClientScopeRepresentation> scopes = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=listClientScopes",
+                null,
+                headers,
+                List.class);
+
+        return scopes.stream()
+                .filter(s -> scopeName.equals(s.getName()))
+                .map(ClientScopeRepresentation::getId)
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Client scope not found: " + scopeName));
+    }
+
+    // ==================== User Attribute Operations ====================
+
+    @Path("/user-attribute/{realmName}/{username}")
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getUserAttributes(
+            @PathParam("realmName") String realmName,
+            @PathParam("username") String username) {
+
+        // First, get the user ID by username
+        String userId = getUserIdByUsername(realmName, username);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.USER_ID, userId);
+
+        @SuppressWarnings("unchecked")
+        Map<String, List<String>> result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=getUserAttributes",
+                null,
+                headers,
+                Map.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/user-attribute/{realmName}/{username}/{attributeName}")
+    @POST
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response setUserAttribute(
+            @PathParam("realmName") String realmName,
+            @PathParam("username") String username,
+            @PathParam("attributeName") String attributeName,
+            @QueryParam("attributeValue") String attributeValue) {
+
+        // First, get the user ID by username
+        String userId = getUserIdByUsername(realmName, username);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.USER_ID, userId);
+        headers.put(KeycloakConstants.ATTRIBUTE_NAME, attributeName);
+        headers.put(KeycloakConstants.ATTRIBUTE_VALUE, attributeValue);
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=setUserAttribute",
+                null,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/user-attribute/{realmName}/{username}/{attributeName}")
+    @DELETE
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response deleteUserAttribute(
+            @PathParam("realmName") String realmName,
+            @PathParam("username") String username,
+            @PathParam("attributeName") String attributeName) {
+
+        // First, get the user ID by username
+        String userId = getUserIdByUsername(realmName, username);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.USER_ID, userId);
+        headers.put(KeycloakConstants.ATTRIBUTE_NAME, attributeName);
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=deleteUserAttribute",
+                null,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
+    // ==================== User Credential Operations ====================
+
+    @Path("/user-credential/{realmName}/{username}")
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getUserCredentials(
+            @PathParam("realmName") String realmName,
+            @PathParam("username") String username) {
+
+        // First, get the user ID by username
+        String userId = getUserIdByUsername(realmName, username);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.USER_ID, userId);
+
+        @SuppressWarnings("unchecked")
+        List<CredentialRepresentation> result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=getUserCredentials",
+                null,
+                headers,
+                List.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/user-credential/{realmName}/{username}/{credentialId}")
+    @DELETE
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response deleteUserCredential(
+            @PathParam("realmName") String realmName,
+            @PathParam("username") String username,
+            @PathParam("credentialId") String credentialId) {
+
+        // First, get the user ID by username
+        String userId = getUserIdByUsername(realmName, username);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.USER_ID, userId);
+        headers.put(KeycloakConstants.CREDENTIAL_ID, credentialId);
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=deleteUserCredential",
+                null,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
+    // ==================== User Required Action Operations ====================
+
+    @Path("/user-action/{realmName}/{username}/add")
+    @POST
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response addRequiredAction(
+            @PathParam("realmName") String realmName,
+            @PathParam("username") String username,
+            @QueryParam("action") String action) {
+
+        // First, get the user ID by username
+        String userId = getUserIdByUsername(realmName, username);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.USER_ID, userId);
+        headers.put(KeycloakConstants.REQUIRED_ACTION, action);
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=addRequiredAction",
+                null,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/user-action/{realmName}/{username}/remove")
+    @POST
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response removeRequiredAction(
+            @PathParam("realmName") String realmName,
+            @PathParam("username") String username,
+            @QueryParam("action") String action) {
+
+        // First, get the user ID by username
+        String userId = getUserIdByUsername(realmName, username);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.USER_ID, userId);
+        headers.put(KeycloakConstants.REQUIRED_ACTION, action);
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=removeRequiredAction",
+                null,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/user-action/{realmName}/{username}/execute")
+    @POST
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response executeActionsEmail(
+            @PathParam("realmName") String realmName,
+            @PathParam("username") String username,
+            @QueryParam("actions") String actions,
+            @QueryParam("redirectUri") String redirectUri,
+            @QueryParam("lifespan") Integer lifespan) {
+
+        // First, get the user ID by username
+        String userId = getUserIdByUsername(realmName, username);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.USER_ID, userId);
+
+        // Parse actions (comma-separated list)
+        if (actions != null && !actions.isEmpty()) {
+            List<String> actionList = List.of(actions.split(","));
+            headers.put(KeycloakConstants.ACTIONS, actionList);
+        }
+
+        if (redirectUri != null) {
+            headers.put(KeycloakConstants.REDIRECT_URI, redirectUri);
+        }
+
+        if (lifespan != null) {
+            headers.put(KeycloakConstants.LIFESPAN, lifespan);
+        }
+
+        String result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=executeActionsEmail",
+                null,
+                headers,
+                String.class);
+
+        return Response.ok(result).build();
+    }
+
+    // ==================== User Role Query Operations ====================
+
+    @Path("/user-role/{realmName}/{username}")
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getUserRoles(
+            @PathParam("realmName") String realmName,
+            @PathParam("username") String username) {
+
+        // First, get the user ID by username
+        String userId = getUserIdByUsername(realmName, username);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.USER_ID, userId);
+
+        @SuppressWarnings("unchecked")
+        List<RoleRepresentation> result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=getUserRoles",
+                null,
+                headers,
+                List.class);
+
+        return Response.ok(result).build();
+    }
+
+    // ==================== Client Secret Operations ====================
+
+    @Path("/client-secret/{realmName}/{clientId}")
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getClientSecret(
+            @PathParam("realmName") String realmName,
+            @PathParam("clientId") String clientId) {
+
+        // First, get the client UUID by clientId
+        String clientUuid = getClientUuidByClientId(realmName, clientId);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.CLIENT_UUID, clientUuid);
+
+        CredentialRepresentation result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=getClientSecret",
+                null,
+                headers,
+                CredentialRepresentation.class);
+
+        return Response.ok(result).build();
+    }
+
+    @Path("/client-secret/{realmName}/{clientId}/regenerate")
+    @POST
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response regenerateClientSecret(
+            @PathParam("realmName") String realmName,
+            @PathParam("clientId") String clientId) {
+
+        // First, get the client UUID by clientId
+        String clientUuid = getClientUuidByClientId(realmName, clientId);
+
+        Map<String, Object> headers = new HashMap<>();
+        headers.put(KeycloakConstants.REALM_NAME, realmName);
+        headers.put(KeycloakConstants.CLIENT_UUID, clientUuid);
+
+        CredentialRepresentation result = producerTemplate.requestBodyAndHeaders(
+                getKeycloakEndpoint() + "&operation=regenerateClientSecret",
+                null,
+                headers,
+                CredentialRepresentation.class);
 
         return Response.ok(result).build();
     }
