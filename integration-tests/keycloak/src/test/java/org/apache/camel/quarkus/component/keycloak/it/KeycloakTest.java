@@ -28,6 +28,7 @@ import io.restassured.RestAssured;
 import io.restassured.config.ObjectMapperConfig;
 import io.restassured.config.RestAssuredConfig;
 import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -37,9 +38,13 @@ import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.ClientScopeRepresentation;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.GroupRepresentation;
+import org.keycloak.representations.idm.IdentityProviderRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
+import org.keycloak.representations.idm.authorization.PolicyRepresentation;
+import org.keycloak.representations.idm.authorization.ResourcePermissionRepresentation;
+import org.keycloak.representations.idm.authorization.ResourceRepresentation;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.is;
@@ -61,6 +66,12 @@ class KeycloakTest {
     private static final String TEST_CLIENT_ROLE_NAME = "test-client-role-"
             + UUID.randomUUID().toString().substring(0, 8);
     private static final String TEST_CLIENT_SCOPE_NAME = "test-scope-" + UUID.randomUUID().toString().substring(0, 8);
+    private static final String TEST_IDP_ALIAS = "test-idp-" + UUID.randomUUID().toString().substring(0, 8);
+    private static final String TEST_AUTHZ_CLIENT_ID = "test-authz-client-"
+            + UUID.randomUUID().toString().substring(0, 8);
+    private static String TEST_RESOURCE_ID; // Set after creation
+    private static String TEST_POLICY_ID; // Set after creation
+    private static String TEST_PERMISSION_ID; // Set after creation
 
     @BeforeAll
     public static void configureRestAssured() {
@@ -1306,10 +1317,121 @@ class KeycloakTest {
         assertThat(statusCode == 200 || statusCode == 500, is(true));
     }
 
+    // ==================== Identity Provider Tests ====================
+
+    @Test
+    @Order(78)
+    public void testCreateIdentityProvider() {
+        // Create an OIDC identity provider
+        IdentityProviderRepresentation idp = new IdentityProviderRepresentation();
+        idp.setAlias(TEST_IDP_ALIAS);
+        idp.setProviderId("oidc");
+        idp.setEnabled(true);
+        idp.setDisplayName("Test Identity Provider");
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(idp)
+                .when()
+                .post("/keycloak/identity-provider/{realmName}/pojo", TEST_REALM_NAME)
+                .then()
+                .statusCode(201)
+                .body(is("Identity provider created successfully"));
+    }
+
+    @Test
+    @Order(79)
+    public void testListIdentityProviders() {
+        List<IdentityProviderRepresentation> idps = given()
+                .when()
+                .get("/keycloak/identity-provider/{realmName}", TEST_REALM_NAME)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .body()
+                .jsonPath()
+                .getList(".", IdentityProviderRepresentation.class);
+
+        assertThat(idps, notNullValue());
+        assertThat(idps.size(), greaterThanOrEqualTo(1)); // At least our test IDP
+
+        // Verify our test IDP is in the list
+        boolean foundTestIdp = idps.stream()
+                .anyMatch(i -> TEST_IDP_ALIAS.equals(i.getAlias()));
+        assertThat(foundTestIdp, is(true));
+    }
+
+    @Test
+    @Order(80)
+    public void testGetIdentityProvider() {
+        IdentityProviderRepresentation idp = given()
+                .when()
+                .get("/keycloak/identity-provider/{realmName}/{idpAlias}", TEST_REALM_NAME, TEST_IDP_ALIAS)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .as(IdentityProviderRepresentation.class);
+
+        assertThat(idp, notNullValue());
+        assertThat(idp.getAlias(), is(TEST_IDP_ALIAS));
+        assertThat(idp.getProviderId(), is("oidc"));
+        assertThat(idp.getDisplayName(), is("Test Identity Provider"));
+    }
+
+    @Test
+    @Order(81)
+    public void testUpdateIdentityProvider() {
+        // First get the identity provider
+        IdentityProviderRepresentation idp = given()
+                .when()
+                .get("/keycloak/identity-provider/{realmName}/{idpAlias}", TEST_REALM_NAME, TEST_IDP_ALIAS)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(IdentityProviderRepresentation.class);
+
+        // Update the display name
+        idp.setDisplayName("Updated Test Identity Provider");
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(idp)
+                .when()
+                .put("/keycloak/identity-provider/{realmName}/{idpAlias}", TEST_REALM_NAME, TEST_IDP_ALIAS)
+                .then()
+                .statusCode(200)
+                .body(is("Identity provider updated successfully"));
+
+        // Verify the update
+        IdentityProviderRepresentation updatedIdp = given()
+                .when()
+                .get("/keycloak/identity-provider/{realmName}/{idpAlias}", TEST_REALM_NAME, TEST_IDP_ALIAS)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(IdentityProviderRepresentation.class);
+
+        assertThat(updatedIdp.getDisplayName(), is("Updated Test Identity Provider"));
+    }
+
+    @Test
+    @Order(99)
+    public void testCleanupIdentityProvider() {
+        // Delete test identity provider
+        given()
+                .when()
+                .delete("/keycloak/identity-provider/{realmName}/{idpAlias}", TEST_REALM_NAME, TEST_IDP_ALIAS)
+                .then()
+                .statusCode(200)
+                .body(is("Identity provider deleted successfully"));
+    }
+
     // ==================== Cleanup Client Scopes ====================
 
     @Test
-    @Order(94)
+    @Order(100)
     public void testCleanupClientScopes() {
         // Delete test client scopes
         String[] scopesToDelete = { TEST_CLIENT_SCOPE_NAME, TEST_CLIENT_SCOPE_NAME + "-pojo" };
@@ -1362,10 +1484,437 @@ class KeycloakTest {
                 .statusCode(500); // Should fail since role doesn't exist
     }
 
-    // ==================== Cleanup Tests ====================
+    // ==================== Authorization Services Tests ====================
+
+    @Test
+    @Order(83)
+    public void testCreateAuthorizationClient() {
+        // Create a client with authorization enabled for testing authorization services
+        ClientRepresentation client = new ClientRepresentation();
+        client.setClientId(TEST_AUTHZ_CLIENT_ID);
+        client.setEnabled(true);
+        client.setPublicClient(false); // Must be confidential for authorization
+        client.setServiceAccountsEnabled(true);
+        client.setAuthorizationServicesEnabled(true); // Enable authorization
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(client)
+                .when()
+                .post("/keycloak/client/{realmName}/pojo", TEST_REALM_NAME)
+                .then()
+                .statusCode(201)
+                .body(is("Client created successfully"));
+    }
+
+    @Test
+    @Order(84)
+    public void testCreateResource() {
+        // Create an authorization resource
+        ResourceRepresentation resource = new ResourceRepresentation();
+        resource.setName("test-resource");
+        resource.setDisplayName("Test Resource");
+        resource.setType("urn:test:resources:default");
+        resource.setUri("/test-resource/*");
+
+        Response response = given()
+                .contentType(ContentType.JSON)
+                .body(resource)
+                .when()
+                .post("/keycloak/resource/{realmName}/{clientId}/pojo", TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID)
+                .then()
+                .statusCode(201)
+                .extract()
+                .response();
+
+        // Extract resource ID from Location header
+        String location = response.header("Location");
+        if (location != null) {
+            TEST_RESOURCE_ID = location.substring(location.lastIndexOf('/') + 1);
+        }
+    }
+
+    @Test
+    @Order(85)
+    public void testListResources() {
+        List<ResourceRepresentation> resources = given()
+                .when()
+                .get("/keycloak/resource/{realmName}/{clientId}", TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .body()
+                .jsonPath()
+                .getList(".", ResourceRepresentation.class);
+
+        assertThat(resources, notNullValue());
+        assertThat(resources.size(), greaterThanOrEqualTo(1));
+
+        // Find and store the resource ID if not already set
+        if (TEST_RESOURCE_ID == null) {
+            TEST_RESOURCE_ID = resources.stream()
+                    .filter(r -> "test-resource".equals(r.getName()))
+                    .map(ResourceRepresentation::getId)
+                    .findFirst()
+                    .orElse(null);
+        }
+    }
+
+    @Test
+    @Order(86)
+    public void testGetResource() {
+        assertThat(TEST_RESOURCE_ID, notNullValue());
+
+        ResourceRepresentation resource = given()
+                .when()
+                .get("/keycloak/resource/{realmName}/{clientId}/{resourceId}",
+                        TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID, TEST_RESOURCE_ID)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .as(ResourceRepresentation.class);
+
+        assertThat(resource, notNullValue());
+        assertThat(resource.getName(), is("test-resource"));
+        assertThat(resource.getType(), is("urn:test:resources:default"));
+    }
+
+    @Test
+    @Order(87)
+    public void testUpdateResource() {
+        assertThat(TEST_RESOURCE_ID, notNullValue());
+
+        // First get the resource
+        ResourceRepresentation resource = given()
+                .when()
+                .get("/keycloak/resource/{realmName}/{clientId}/{resourceId}",
+                        TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID, TEST_RESOURCE_ID)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(ResourceRepresentation.class);
+
+        // Update the resource
+        resource.setDisplayName("Updated Test Resource");
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(resource)
+                .when()
+                .put("/keycloak/resource/{realmName}/{clientId}/{resourceId}",
+                        TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID, TEST_RESOURCE_ID)
+                .then()
+                .statusCode(200)
+                .body(is("Resource updated successfully"));
+
+        // Verify the update
+        ResourceRepresentation updatedResource = given()
+                .when()
+                .get("/keycloak/resource/{realmName}/{clientId}/{resourceId}",
+                        TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID, TEST_RESOURCE_ID)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(ResourceRepresentation.class);
+
+        assertThat(updatedResource.getDisplayName(), is("Updated Test Resource"));
+    }
+
+    @Test
+    @Order(88)
+    public void testCreateResourcePolicy() {
+        // Create a resource-based policy
+        PolicyRepresentation policy = new PolicyRepresentation();
+        policy.setName("test-policy");
+        policy.setDescription("Test Policy");
+        policy.setType("resource");
+        policy.setDecisionStrategy(org.keycloak.representations.idm.authorization.DecisionStrategy.UNANIMOUS);
+
+        Response response = given()
+                .contentType(ContentType.JSON)
+                .body(policy)
+                .when()
+                .post("/keycloak/resource-policy/{realmName}/{clientId}/pojo",
+                        TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID)
+                .then()
+                .statusCode(201)
+                .extract()
+                .response();
+
+        // Extract policy ID from Location header
+        String location = response.header("Location");
+        if (location != null) {
+            TEST_POLICY_ID = location.substring(location.lastIndexOf('/') + 1);
+        }
+    }
+
+    @Test
+    @Order(89)
+    public void testListResourcePolicies() {
+        List<PolicyRepresentation> policies = given()
+                .when()
+                .get("/keycloak/resource-policy/{realmName}/{clientId}", TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .body()
+                .jsonPath()
+                .getList(".", PolicyRepresentation.class);
+
+        assertThat(policies, notNullValue());
+        assertThat(policies.size(), greaterThanOrEqualTo(1));
+
+        // Find and store the policy ID if not already set
+        if (TEST_POLICY_ID == null) {
+            TEST_POLICY_ID = policies.stream()
+                    .filter(p -> "test-policy".equals(p.getName()))
+                    .map(PolicyRepresentation::getId)
+                    .findFirst()
+                    .orElse(null);
+        }
+    }
+
+    @Test
+    @Order(90)
+    public void testGetResourcePolicy() {
+        assertThat(TEST_POLICY_ID, notNullValue());
+
+        PolicyRepresentation policy = given()
+                .when()
+                .get("/keycloak/resource-policy/{realmName}/{clientId}/{policyId}",
+                        TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID, TEST_POLICY_ID)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .as(PolicyRepresentation.class);
+
+        assertThat(policy, notNullValue());
+        assertThat(policy.getName(), is("test-policy"));
+    }
+
+    @Test
+    @Order(91)
+    public void testUpdateResourcePolicy() {
+        assertThat(TEST_POLICY_ID, notNullValue());
+
+        // First get the policy
+        PolicyRepresentation policy = given()
+                .when()
+                .get("/keycloak/resource-policy/{realmName}/{clientId}/{policyId}",
+                        TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID, TEST_POLICY_ID)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(PolicyRepresentation.class);
+
+        // Update the policy
+        policy.setDescription("Updated Test Policy");
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(policy)
+                .when()
+                .put("/keycloak/resource-policy/{realmName}/{clientId}/{policyId}",
+                        TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID, TEST_POLICY_ID)
+                .then()
+                .statusCode(200)
+                .body(is("Policy updated successfully"));
+
+        // Verify the update
+        PolicyRepresentation updatedPolicy = given()
+                .when()
+                .get("/keycloak/resource-policy/{realmName}/{clientId}/{policyId}",
+                        TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID, TEST_POLICY_ID)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(PolicyRepresentation.class);
+
+        assertThat(updatedPolicy.getDescription(), is("Updated Test Policy"));
+    }
+
+    @Test
+    @Order(92)
+    public void testCreateResourcePermission() {
+        assertThat(TEST_RESOURCE_ID, notNullValue());
+        assertThat(TEST_POLICY_ID, notNullValue());
+
+        // Create a resource permission linking resource and policy
+        ResourcePermissionRepresentation permission = new ResourcePermissionRepresentation();
+        permission.setName("test-permission");
+        permission.setDescription("Test Permission");
+        permission.setResources(java.util.Set.of(TEST_RESOURCE_ID));
+        permission.setPolicies(java.util.Set.of(TEST_POLICY_ID));
+        permission.setDecisionStrategy(org.keycloak.representations.idm.authorization.DecisionStrategy.UNANIMOUS);
+
+        Response response = given()
+                .contentType(ContentType.JSON)
+                .body(permission)
+                .when()
+                .post("/keycloak/resource-permission/{realmName}/{clientId}/pojo",
+                        TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID)
+                .then()
+                .statusCode(201)
+                .extract()
+                .response();
+
+        // Extract permission ID from Location header
+        String location = response.header("Location");
+        if (location != null) {
+            TEST_PERMISSION_ID = location.substring(location.lastIndexOf('/') + 1);
+        }
+    }
+
+    @Test
+    @Order(93)
+    public void testListResourcePermissions() {
+        List<ResourcePermissionRepresentation> permissions = given()
+                .when()
+                .get("/keycloak/resource-permission/{realmName}/{clientId}",
+                        TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .body()
+                .jsonPath()
+                .getList(".", ResourcePermissionRepresentation.class);
+
+        assertThat(permissions, notNullValue());
+        assertThat(permissions.size(), greaterThanOrEqualTo(1));
+
+        // Find and store the permission ID if not already set
+        if (TEST_PERMISSION_ID == null) {
+            TEST_PERMISSION_ID = permissions.stream()
+                    .filter(p -> "test-permission".equals(p.getName()))
+                    .map(ResourcePermissionRepresentation::getId)
+                    .findFirst()
+                    .orElse(null);
+        }
+    }
+
+    @Test
+    @Order(94)
+    public void testGetResourcePermission() {
+        assertThat(TEST_PERMISSION_ID, notNullValue());
+
+        PolicyRepresentation permission = given()
+                .when()
+                .get("/keycloak/resource-permission/{realmName}/{clientId}/{permissionId}",
+                        TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID, TEST_PERMISSION_ID)
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .as(PolicyRepresentation.class);
+
+        assertThat(permission, notNullValue());
+        assertThat(permission.getName(), is("test-permission"));
+    }
 
     @Test
     @Order(95)
+    public void testUpdateResourcePermission() {
+        assertThat(TEST_PERMISSION_ID, notNullValue());
+
+        // First get the permission
+        PolicyRepresentation permission = given()
+                .when()
+                .get("/keycloak/resource-permission/{realmName}/{clientId}/{permissionId}",
+                        TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID, TEST_PERMISSION_ID)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(PolicyRepresentation.class);
+
+        // Update the permission
+        permission.setDescription("Updated Test Permission");
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(permission)
+                .when()
+                .put("/keycloak/resource-permission/{realmName}/{clientId}/{permissionId}",
+                        TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID, TEST_PERMISSION_ID)
+                .then()
+                .statusCode(200)
+                .body(is("Permission updated successfully"));
+
+        // Verify the update
+        PolicyRepresentation updatedPermission = given()
+                .when()
+                .get("/keycloak/resource-permission/{realmName}/{clientId}/{permissionId}",
+                        TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID, TEST_PERMISSION_ID)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(PolicyRepresentation.class);
+
+        assertThat(updatedPermission.getDescription(), is("Updated Test Permission"));
+    }
+
+    @Test
+    @Order(96)
+    public void testDeleteResourcePermission() {
+        assertThat(TEST_PERMISSION_ID, notNullValue());
+
+        given()
+                .when()
+                .delete("/keycloak/resource-permission/{realmName}/{clientId}/{permissionId}",
+                        TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID, TEST_PERMISSION_ID)
+                .then()
+                .statusCode(200)
+                .body(is("Permission deleted successfully"));
+    }
+
+    @Test
+    @Order(97)
+    public void testDeleteResourcePolicy() {
+        assertThat(TEST_POLICY_ID, notNullValue());
+
+        given()
+                .when()
+                .delete("/keycloak/resource-policy/{realmName}/{clientId}/{policyId}",
+                        TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID, TEST_POLICY_ID)
+                .then()
+                .statusCode(200)
+                .body(is("Policy deleted successfully"));
+    }
+
+    @Test
+    @Order(98)
+    public void testDeleteResource() {
+        assertThat(TEST_RESOURCE_ID, notNullValue());
+
+        given()
+                .when()
+                .delete("/keycloak/resource/{realmName}/{clientId}/{resourceId}",
+                        TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID, TEST_RESOURCE_ID)
+                .then()
+                .statusCode(200)
+                .body(is("Resource deleted successfully"));
+    }
+
+    // ==================== Cleanup Tests ====================
+
+    @Test
+    @Order(101)
+    public void testCleanupAuthorizationClient() {
+        // Delete the authorization client
+        given()
+                .when()
+                .delete("/keycloak/client/{realmName}/{clientId}", TEST_REALM_NAME, TEST_AUTHZ_CLIENT_ID)
+                .then()
+                .statusCode(200)
+                .body(is("Client deleted successfully"));
+    }
+
+    @Test
+    @Order(102)
     public void testCleanupClients() {
         // Delete test clients
         String[] clientsToDelete = { TEST_CLIENT_ID, TEST_CLIENT_ID + "-pojo" };
@@ -1381,7 +1930,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(96)
+    @Order(103)
     public void testCleanupGroups() {
         // Delete test groups
         String[] groupsToDelete = { TEST_GROUP_NAME, TEST_GROUP_NAME + "-pojo" };
@@ -1397,7 +1946,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(98)
+    @Order(104)
     public void testCleanupRoles() {
         // Delete test roles
         String[] rolesToDelete = { TEST_ROLE_NAME, TEST_ROLE_NAME + "-pojo" };
@@ -1413,7 +1962,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(99)
+    @Order(105)
     public void testCleanupUsers() {
         // Delete test users
         String[] usersToDelete = { TEST_USER_NAME, TEST_USER_NAME + "-pojo" };
@@ -1429,7 +1978,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(100)
+    @Order(106)
     public void testCleanupRealm() {
         // Delete the test realm (this will also delete all users and roles in it)
         given()
@@ -1441,7 +1990,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(101)
+    @Order(107)
     public void testVerifyRealmDeleted() {
         // Verify that the realm was actually deleted by expecting a failure
         given()
