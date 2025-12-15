@@ -16,6 +16,7 @@
  */
 package org.apache.camel.quarkus.component.keycloak.it;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -110,6 +111,42 @@ class KeycloakTest {
 
     @Test
     @Order(3)
+    public void testConfigureRealmSmtp() {
+        // Get the realm
+        RealmRepresentation realm = given()
+                .when()
+                .get("/keycloak/realm/{realmName}", TEST_REALM_NAME)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(RealmRepresentation.class);
+
+        // Configure SMTP settings to use GreenMail
+        Map<String, String> smtpServer = new HashMap<>();
+        smtpServer.put("host", "greenmail");
+        smtpServer.put("port", "3025");
+        smtpServer.put("from", "keycloak@test.local");
+        smtpServer.put("fromDisplayName", "Keycloak Test");
+        smtpServer.put("replyTo", "noreply@test.local");
+        smtpServer.put("ssl", "false");
+        smtpServer.put("starttls", "false");
+        smtpServer.put("auth", "false");
+
+        realm.setSmtpServer(smtpServer);
+
+        // Update the realm
+        given()
+                .contentType(ContentType.JSON)
+                .body(realm)
+                .when()
+                .put("/keycloak/realm/{realmName}", TEST_REALM_NAME)
+                .then()
+                .statusCode(200)
+                .body(is("Realm updated successfully"));
+    }
+
+    @Test
+    @Order(4)
     public void testCreateRealmWithPojo() {
         String pojoRealmName = TEST_REALM_NAME + "-pojo";
 
@@ -136,7 +173,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(4)
+    @Order(5)
     public void testGetRealm() {
         RealmRepresentation realm = given()
                 .when()
@@ -155,7 +192,7 @@ class KeycloakTest {
     // ==================== User Operations Tests ====================
 
     @Test
-    @Order(5)
+    @Order(6)
     public void testCreateUserWithHeaders() {
         given()
                 .queryParam("email", TEST_USER_NAME + "@test.com")
@@ -169,7 +206,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(6)
+    @Order(7)
     public void testCreateUserWithPojo() {
         String pojoUserName = TEST_USER_NAME + "-pojo";
 
@@ -191,7 +228,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(7)
+    @Order(8)
     public void testGetUser() {
         UserRepresentation user = given()
                 .when()
@@ -210,7 +247,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(8)
+    @Order(9)
     public void testListUsers() {
         List<UserRepresentation> users = given()
                 .when()
@@ -228,7 +265,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(9)
+    @Order(10)
     public void testUpdateUser() {
         // First get the user
         UserRepresentation user = given()
@@ -268,7 +305,7 @@ class KeycloakTest {
     // ==================== Role Operations Tests ====================
 
     @Test
-    @Order(10)
+    @Order(11)
     public void testCreateRoleWithHeaders() {
         given()
                 .queryParam("description", "Test role for integration testing")
@@ -280,7 +317,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(11)
+    @Order(12)
     public void testCreateRoleWithPojo() {
         String pojoRoleName = TEST_ROLE_NAME + "-pojo";
 
@@ -299,7 +336,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(12)
+    @Order(13)
     public void testGetRole() {
         RoleRepresentation role = given()
                 .when()
@@ -316,7 +353,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(13)
+    @Order(14)
     public void testListRoles() {
         List<RoleRepresentation> roles = given()
                 .when()
@@ -334,7 +371,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(14)
+    @Order(15)
     public void testUpdateRole() {
         // First get the role
         RoleRepresentation role = given()
@@ -372,7 +409,7 @@ class KeycloakTest {
     // ==================== User-Role Operations Tests ====================
 
     @Test
-    @Order(15)
+    @Order(16)
     public void testAssignRoleToUser() {
         given()
                 .when()
@@ -384,7 +421,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(16)
+    @Order(17)
     public void testRemoveRoleFromUser() {
         given()
                 .when()
@@ -398,7 +435,7 @@ class KeycloakTest {
     // ==================== Group Operations Tests ====================
 
     @Test
-    @Order(17)
+    @Order(18)
     public void testCreateGroupWithHeaders() {
         given()
                 .when()
@@ -409,7 +446,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(18)
+    @Order(19)
     public void testCreateGroupWithPojo() {
         String pojoGroupName = TEST_GROUP_NAME + "-pojo";
 
@@ -427,7 +464,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(19)
+    @Order(20)
     public void testListGroups() {
         List<GroupRepresentation> groups = given()
                 .when()
@@ -445,7 +482,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(20)
+    @Order(21)
     public void testGetGroup() {
         GroupRepresentation group = given()
                 .when()
@@ -461,7 +498,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(21)
+    @Order(22)
     public void testUpdateGroup() {
         // First get the group
         GroupRepresentation group = given()
@@ -486,7 +523,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(22)
+    @Order(23)
     public void testAddUserToGroup() {
         given()
                 .when()
@@ -498,7 +535,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(23)
+    @Order(24)
     public void testListUserGroups() {
         List<GroupRepresentation> groups = given()
                 .when()
@@ -516,7 +553,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(24)
+    @Order(25)
     public void testRemoveUserFromGroup() {
         given()
                 .when()
@@ -530,7 +567,7 @@ class KeycloakTest {
     // ==================== Client Operations Tests ====================
 
     @Test
-    @Order(25)
+    @Order(26)
     public void testCreateClientWithHeaders() {
         given()
                 .when()
@@ -541,7 +578,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(26)
+    @Order(27)
     public void testCreateClientWithPojo() {
         String pojoClientId = TEST_CLIENT_ID + "-pojo";
 
@@ -561,7 +598,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(27)
+    @Order(28)
     public void testListClients() {
         List<ClientRepresentation> clients = given()
                 .when()
@@ -579,7 +616,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(28)
+    @Order(29)
     public void testGetClient() {
         ClientRepresentation client = given()
                 .when()
@@ -595,7 +632,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(29)
+    @Order(30)
     public void testUpdateClient() {
         // First get the client
         ClientRepresentation client = given()
@@ -633,7 +670,7 @@ class KeycloakTest {
     // ==================== User Search and Session Operations Tests ====================
 
     @Test
-    @Order(30)
+    @Order(31)
     public void testSearchUsers() {
         // Search for users by username prefix
         List<UserRepresentation> users = given()
@@ -657,7 +694,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(31)
+    @Order(32)
     public void testListUserSessions() {
         // List sessions for the test user
         // Note: This user may not have active sessions in a test environment
@@ -677,7 +714,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(32)
+    @Order(33)
     public void testResetUserPassword() {
         // Reset the user's password
         given()
@@ -691,42 +728,34 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(33)
+    @Order(34)
     public void testSendVerifyEmail() {
         // Send verification email to the user
-        // Note: This may fail in test environments without SMTP configuration
-        // We test that the endpoint is accessible, but accept 500 errors for missing SMTP
-        int statusCode = given()
+        // Now that SMTP is configured with GreenMail, this should succeed without 500 errors
+        given()
                 .when()
                 .post("/keycloak/user/{realmName}/{username}/send-verify-email", TEST_REALM_NAME, TEST_USER_NAME)
                 .then()
-                .extract()
-                .statusCode();
-
-        // Accept either 200 (success) or 500 (SMTP not configured)
-        assertThat(statusCode == 200 || statusCode == 500, is(true));
-    }
-
-    @Test
-    @Order(34)
-    public void testSendPasswordResetEmail() {
-        // Send password reset email to the user
-        // Note: This may fail in test environments without SMTP configuration
-        // We test that the endpoint is accessible, but accept 500 errors for missing SMTP
-        int statusCode = given()
-                .when()
-                .post("/keycloak/user/{realmName}/{username}/send-password-reset-email", TEST_REALM_NAME,
-                        TEST_USER_NAME)
-                .then()
-                .extract()
-                .statusCode();
-
-        // Accept either 200 (success) or 500 (SMTP not configured)
-        assertThat(statusCode == 200 || statusCode == 500, is(true));
+                .statusCode(200)
+                .body(is("Verify email sent successfully"));
     }
 
     @Test
     @Order(35)
+    public void testSendPasswordResetEmail() {
+        // Send password reset email to the user
+        // Now that SMTP is configured with GreenMail, this should succeed without 500 errors
+        given()
+                .when()
+                .post("/keycloak/user/{realmName}/{username}/send-password-reset-email", TEST_REALM_NAME,
+                        TEST_USER_NAME)
+                .then()
+                .statusCode(200)
+                .body(is("Password reset email sent successfully"));
+    }
+
+    @Test
+    @Order(36)
     public void testLogoutUser() {
         // Logout the user (revoke all sessions)
         given()
@@ -740,7 +769,7 @@ class KeycloakTest {
     // ==================== Client Role Operations Tests ====================
 
     @Test
-    @Order(40)
+    @Order(41)
     public void testCreateClientRoleWithHeaders() {
         given()
                 .queryParam("description", "Test client role for integration testing")
@@ -753,7 +782,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(41)
+    @Order(42)
     public void testCreateClientRoleWithPojo() {
         String pojoClientRoleName = TEST_CLIENT_ROLE_NAME + "-pojo";
 
@@ -772,7 +801,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(42)
+    @Order(43)
     public void testListClientRoles() {
         List<RoleRepresentation> clientRoles = given()
                 .when()
@@ -790,7 +819,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(43)
+    @Order(44)
     public void testGetClientRole() {
         RoleRepresentation clientRole = given()
                 .when()
@@ -808,7 +837,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(44)
+    @Order(45)
     public void testUpdateClientRole() {
         // First get the client role
         RoleRepresentation clientRole = given()
@@ -847,7 +876,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(45)
+    @Order(46)
     public void testAssignClientRoleToUser() {
         given()
                 .when()
@@ -859,7 +888,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(46)
+    @Order(47)
     public void testRemoveClientRoleFromUser() {
         given()
                 .when()
@@ -871,7 +900,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(47)
+    @Order(48)
     public void testDeleteClientRole() {
         given()
                 .when()
@@ -894,7 +923,7 @@ class KeycloakTest {
     // ==================== Client Scope Operations Tests ====================
 
     @Test
-    @Order(50)
+    @Order(51)
     public void testCreateClientScopeWithPojo() {
         ClientScopeRepresentation scope = new ClientScopeRepresentation();
         scope.setName(TEST_CLIENT_SCOPE_NAME);
@@ -912,7 +941,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(51)
+    @Order(52)
     public void testCreateClientScopeWithPojo2() {
         String pojoScopeName = TEST_CLIENT_SCOPE_NAME + "-pojo";
 
@@ -932,7 +961,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(52)
+    @Order(53)
     public void testListClientScopes() {
         List<ClientScopeRepresentation> scopes = given()
                 .when()
@@ -950,7 +979,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(53)
+    @Order(54)
     public void testGetClientScope() {
         ClientScopeRepresentation scope = given()
                 .when()
@@ -966,7 +995,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(54)
+    @Order(55)
     public void testUpdateClientScope() {
         // First get the client scope
         ClientScopeRepresentation scope = given()
@@ -1004,7 +1033,7 @@ class KeycloakTest {
     // ==================== User Attribute Operations Tests ====================
 
     @Test
-    @Order(60)
+    @Order(61)
     public void testSetUserAttribute() {
         given()
                 .queryParam("attributeValue", "test-department")
@@ -1017,7 +1046,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(61)
+    @Order(62)
     public void testGetUserAttributes() {
         Map<String, List<String>> attributes = given()
                 .when()
@@ -1037,7 +1066,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(62)
+    @Order(63)
     public void testDeleteUserAttribute() {
         // Note: Only delete if the attribute exists
         Map<String, List<String>> attributesBefore = given()
@@ -1073,7 +1102,7 @@ class KeycloakTest {
     // ==================== User Roles Query Tests ====================
 
     @Test
-    @Order(63)
+    @Order(64)
     public void testGetUserRoles() {
         // First, assign a role to the user
         given()
@@ -1115,7 +1144,7 @@ class KeycloakTest {
     // ==================== Client Secret Operations Tests ====================
 
     @Test
-    @Order(70)
+    @Order(71)
     public void testGetClientSecret() {
         // First, we need to make the client confidential to have a secret
         ClientRepresentation client = given()
@@ -1152,7 +1181,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(71)
+    @Order(72)
     public void testRegenerateClientSecret() {
         // Get the current secret
         CredentialRepresentation oldSecretData = given()
@@ -1184,7 +1213,7 @@ class KeycloakTest {
     // ==================== Realm Update Tests ====================
 
     @Test
-    @Order(72)
+    @Order(73)
     public void testUpdateRealm() {
         // First get the realm
         RealmRepresentation realm = given()
@@ -1224,7 +1253,7 @@ class KeycloakTest {
     // ==================== User Credential Tests ====================
 
     @Test
-    @Order(73)
+    @Order(74)
     public void testGetUserCredentials() {
         // Get user credentials
         List<CredentialRepresentation> credentials = given()
@@ -1244,7 +1273,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(74)
+    @Order(75)
     public void testDeleteUserCredential() {
         // First get the credentials
         List<CredentialRepresentation> credentials = given()
@@ -1274,7 +1303,7 @@ class KeycloakTest {
     // ==================== Required Action Tests ====================
 
     @Test
-    @Order(75)
+    @Order(76)
     public void testAddRequiredAction() {
         // Add a required action to the user
         given()
@@ -1287,7 +1316,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(76)
+    @Order(77)
     public void testRemoveRequiredAction() {
         // Remove the required action from the user
         given()
@@ -1300,27 +1329,23 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(77)
+    @Order(78)
     public void testExecuteActionsEmail() {
-        // Execute actions email - this may fail without SMTP configuration
-        int statusCode = given()
+        // Don't pass redirectUri to avoid validation errors
+        given()
                 .queryParam("actions", "VERIFY_EMAIL,UPDATE_PASSWORD")
-                .queryParam("redirectUri", "http://localhost:8080/test")
                 .queryParam("lifespan", 3600)
                 .when()
                 .post("/keycloak/user-action/{realmName}/{username}/execute", TEST_REALM_NAME, TEST_USER_NAME)
                 .then()
-                .extract()
-                .statusCode();
-
-        // Accept either 200 (success) or 500 (SMTP not configured)
-        assertThat(statusCode == 200 || statusCode == 500, is(true));
+                .statusCode(200)
+                .body(is("Actions email sent successfully"));
     }
 
     // ==================== Identity Provider Tests ====================
 
     @Test
-    @Order(78)
+    @Order(79)
     public void testCreateIdentityProvider() {
         // Create an OIDC identity provider
         IdentityProviderRepresentation idp = new IdentityProviderRepresentation();
@@ -1340,7 +1365,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(79)
+    @Order(80)
     public void testListIdentityProviders() {
         List<IdentityProviderRepresentation> idps = given()
                 .when()
@@ -1363,7 +1388,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(80)
+    @Order(81)
     public void testGetIdentityProvider() {
         IdentityProviderRepresentation idp = given()
                 .when()
@@ -1381,7 +1406,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(81)
+    @Order(82)
     public void testUpdateIdentityProvider() {
         // First get the identity provider
         IdentityProviderRepresentation idp = given()
@@ -1417,7 +1442,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(99)
+    @Order(100)
     public void testCleanupIdentityProvider() {
         // Delete test identity provider
         given()
@@ -1431,7 +1456,7 @@ class KeycloakTest {
     // ==================== Cleanup Client Scopes ====================
 
     @Test
-    @Order(100)
+    @Order(101)
     public void testCleanupClientScopes() {
         // Delete test client scopes
         String[] scopesToDelete = { TEST_CLIENT_SCOPE_NAME, TEST_CLIENT_SCOPE_NAME + "-pojo" };
@@ -1449,7 +1474,7 @@ class KeycloakTest {
     // ==================== Error Handling Tests ====================
 
     @Test
-    @Order(80)
+    @Order(81)
     public void testErrorHandling_NonExistentRealm() {
         // Test with non-existent realm should fail
         given()
@@ -1463,7 +1488,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(81)
+    @Order(82)
     public void testErrorHandling_NonExistentUser() {
         // Test getting a user that doesn't exist
         given()
@@ -1474,7 +1499,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(82)
+    @Order(83)
     public void testErrorHandling_NonExistentRole() {
         // Test getting a role that doesn't exist
         given()
@@ -1487,7 +1512,7 @@ class KeycloakTest {
     // ==================== Authorization Services Tests ====================
 
     @Test
-    @Order(83)
+    @Order(84)
     public void testCreateAuthorizationClient() {
         // Create a client with authorization enabled for testing authorization services
         ClientRepresentation client = new ClientRepresentation();
@@ -1508,7 +1533,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(84)
+    @Order(85)
     public void testCreateResource() {
         // Create an authorization resource
         ResourceRepresentation resource = new ResourceRepresentation();
@@ -1535,7 +1560,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(85)
+    @Order(86)
     public void testListResources() {
         List<ResourceRepresentation> resources = given()
                 .when()
@@ -1562,7 +1587,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(86)
+    @Order(87)
     public void testGetResource() {
         assertThat(TEST_RESOURCE_ID, notNullValue());
 
@@ -1582,7 +1607,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(87)
+    @Order(88)
     public void testUpdateResource() {
         assertThat(TEST_RESOURCE_ID, notNullValue());
 
@@ -1623,7 +1648,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(88)
+    @Order(89)
     public void testCreateResourcePolicy() {
         // Create a resource-based policy
         PolicyRepresentation policy = new PolicyRepresentation();
@@ -1651,7 +1676,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(89)
+    @Order(90)
     public void testListResourcePolicies() {
         List<PolicyRepresentation> policies = given()
                 .when()
@@ -1678,7 +1703,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(90)
+    @Order(91)
     public void testGetResourcePolicy() {
         assertThat(TEST_POLICY_ID, notNullValue());
 
@@ -1697,7 +1722,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(91)
+    @Order(92)
     public void testUpdateResourcePolicy() {
         assertThat(TEST_POLICY_ID, notNullValue());
 
@@ -1738,7 +1763,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(92)
+    @Order(93)
     public void testCreateResourcePermission() {
         assertThat(TEST_RESOURCE_ID, notNullValue());
         assertThat(TEST_POLICY_ID, notNullValue());
@@ -1770,7 +1795,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(93)
+    @Order(94)
     public void testListResourcePermissions() {
         List<ResourcePermissionRepresentation> permissions = given()
                 .when()
@@ -1798,7 +1823,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(94)
+    @Order(95)
     public void testGetResourcePermission() {
         assertThat(TEST_PERMISSION_ID, notNullValue());
 
@@ -1817,7 +1842,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(95)
+    @Order(96)
     public void testUpdateResourcePermission() {
         assertThat(TEST_PERMISSION_ID, notNullValue());
 
@@ -1858,7 +1883,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(96)
+    @Order(97)
     public void testDeleteResourcePermission() {
         assertThat(TEST_PERMISSION_ID, notNullValue());
 
@@ -1872,7 +1897,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(97)
+    @Order(98)
     public void testDeleteResourcePolicy() {
         assertThat(TEST_POLICY_ID, notNullValue());
 
@@ -1886,7 +1911,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(98)
+    @Order(99)
     public void testDeleteResource() {
         assertThat(TEST_RESOURCE_ID, notNullValue());
 
@@ -1902,7 +1927,7 @@ class KeycloakTest {
     // ==================== Cleanup Tests ====================
 
     @Test
-    @Order(101)
+    @Order(102)
     public void testCleanupAuthorizationClient() {
         // Delete the authorization client
         given()
@@ -1914,7 +1939,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(102)
+    @Order(103)
     public void testCleanupClients() {
         // Delete test clients
         String[] clientsToDelete = { TEST_CLIENT_ID, TEST_CLIENT_ID + "-pojo" };
@@ -1930,7 +1955,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(103)
+    @Order(104)
     public void testCleanupGroups() {
         // Delete test groups
         String[] groupsToDelete = { TEST_GROUP_NAME, TEST_GROUP_NAME + "-pojo" };
@@ -1946,7 +1971,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(104)
+    @Order(105)
     public void testCleanupRoles() {
         // Delete test roles
         String[] rolesToDelete = { TEST_ROLE_NAME, TEST_ROLE_NAME + "-pojo" };
@@ -1962,7 +1987,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(105)
+    @Order(106)
     public void testCleanupUsers() {
         // Delete test users
         String[] usersToDelete = { TEST_USER_NAME, TEST_USER_NAME + "-pojo" };
@@ -1978,7 +2003,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(106)
+    @Order(107)
     public void testCleanupRealm() {
         // Delete the test realm (this will also delete all users and roles in it)
         given()
@@ -1990,7 +2015,7 @@ class KeycloakTest {
     }
 
     @Test
-    @Order(107)
+    @Order(108)
     public void testVerifyRealmDeleted() {
         // Verify that the realm was actually deleted by expecting a failure
         given()
