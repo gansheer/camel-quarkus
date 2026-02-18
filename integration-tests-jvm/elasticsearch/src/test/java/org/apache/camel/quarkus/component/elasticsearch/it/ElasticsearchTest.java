@@ -16,6 +16,12 @@
  */
 package org.apache.camel.quarkus.component.elasticsearch.it;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -24,6 +30,8 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import org.awaitility.Awaitility;
+import org.eclipse.microprofile.config.ConfigProvider;
+import org.jboss.logging.Logger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -33,6 +41,7 @@ import static org.hamcrest.Matchers.is;
 @QuarkusTest
 @QuarkusTestResource(ElasticsearchTestResource.class)
 class ElasticsearchTest {
+    private static final Logger LOG = Logger.getLogger(ElasticsearchTest.class);
 
     @AfterEach
     public void afterEach() {
@@ -141,7 +150,22 @@ class ElasticsearchTest {
 
     @ParameterizedTest
     @MethodSource("componentNames")
-    public void testElasticsearchBulk(String component) {
+    public void testElasticsearchBulk(String component) throws Exception {
+        // After the ping check
+        /*RestAssured.given()
+                .queryParam("component", component)
+                .get("/elasticsearch/ping")
+                .then()
+                .statusCode(200);*/
+
+        // Check cluster health before running bulk operation
+        String healthJson = queryClusterHealth();
+        System.out
+                .println("***************** ------------------- *********************** Cluster health before bulk operation: "
+                        + healthJson);
+        LOG.warn("***************** ------------------- *********************** Cluster health before bulk operation: "
+                + healthJson);
+
         String indexName = UUID.randomUUID().toString();
 
         String indexId = RestAssured.given()
@@ -350,6 +374,49 @@ class ElasticsearchTest {
                     .asString();
             return hits.equals("2");
         });
+    }
+
+    /**
+     * Queries the Elasticsearch cluster health status via HTTP.
+     * Returns the current status immediately without waiting.
+     *
+     * @return           The cluster health response as a String (includes error responses)
+     * @throws Exception if the request fails
+     */
+    private String queryClusterHealth() throws Exception {
+        String hostAddresses = ConfigProvider.getConfig().getValue("camel.component.elasticsearch.host-addresses",
+                String.class);
+        String username = ConfigProvider.getConfig().getValue("camel.component.elasticsearch.user", String.class);
+        String password = ConfigProvider.getConfig().getValue("camel.component.elasticsearch.password", String.class);
+
+        URL url = new URL("http://" + hostAddresses + "/_cluster/health");
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+        // Set up Basic Authentication
+        String auth = username + ":" + password;
+        String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
+        connection.setRequestProperty("Authorization", "Basic " + encodedAuth);
+
+        connection.setRequestMethod("GET");
+        connection.setConnectTimeout(5000);
+        connection.setReadTimeout(5000);
+
+        int responseCode = connection.getResponseCode();
+
+        // Read response body (works for both success and error responses)
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(
+                        responseCode == HttpURLConnection.HTTP_OK
+                                ? connection.getInputStream()
+                                : connection.getErrorStream()))) {
+            StringBuilder response = new StringBuilder();
+            response.append("HTTP ").append(responseCode).append(": ");
+            String line;
+            while ((line = reader.readLine()) != null) {
+                response.append(line);
+            }
+            return "***************** ------------------- *********************** " + response.toString();
+        }
     }
 
     /**

@@ -51,6 +51,7 @@ public class ElasticsearchTestResource implements QuarkusTestResourceLifecycleMa
                     .withEnv("ELASTIC_USERNAME", ELASTICSEARCH_USERNAME)
                     .withEnv("ELASTIC_PASSWORD", ELASTICSEARCH_PASSWORD)
                     .withEnv("ES_JAVA_OPTS", "-Xms512m -Xmx512m")
+                    //.withEnv("ES_JAVA_OPTS", "-Xms256m -Xmx256m") 401 bulk failure
                     .waitingFor(Wait.forListeningPort());
 
             container.start();
