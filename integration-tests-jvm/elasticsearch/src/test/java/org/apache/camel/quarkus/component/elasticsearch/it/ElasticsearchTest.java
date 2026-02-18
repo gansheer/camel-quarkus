@@ -159,12 +159,9 @@ class ElasticsearchTest {
                 .statusCode(200);*/
 
         // Check cluster health before running bulk operation
-        String healthJson = queryClusterHealth();
-        System.out
-                .println("***************** ------------------- *********************** Cluster health before bulk operation: "
-                        + healthJson);
-        LOG.warn("***************** ------------------- *********************** Cluster health before bulk operation: "
-                + healthJson);
+        // queryClusterHealth();
+        // health again until ok -> the test then is ok even with 256m because we wait for the cluster to be green.
+        queryClusterHealthUntilGreen();
 
         String indexName = UUID.randomUUID().toString();
 
@@ -417,6 +414,71 @@ class ElasticsearchTest {
             }
             return "***************** ------------------- *********************** " + response.toString();
         }
+    }
+
+    /**
+     * Queries the Elasticsearch cluster health status and waits until it's green or yellow.
+     * Retries with Awaitility until the cluster is ready.
+     *
+     * @return           The cluster health JSON response as a String
+     * @throws Exception if the request fails after all retries
+     */
+    private String queryClusterHealthUntilGreen() throws Exception {
+        String hostAddresses = ConfigProvider.getConfig().getValue("camel.component.elasticsearch.host-addresses",
+                String.class);
+        String username = ConfigProvider.getConfig().getValue("camel.component.elasticsearch.user", String.class);
+        String password = ConfigProvider.getConfig().getValue("camel.component.elasticsearch.password", String.class);
+
+        return Awaitility.await()
+                .pollInterval(500, TimeUnit.MILLISECONDS)
+                .atMost(30, TimeUnit.SECONDS)
+                .until(() -> {
+                    try {
+                        URL url = new URL("http://" + hostAddresses + "/_cluster/health");
+                        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+                        // Set up Basic Authentication
+                        String auth = username + ":" + password;
+                        String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
+                        connection.setRequestProperty("Authorization", "Basic " + encodedAuth);
+
+                        connection.setRequestMethod("GET");
+                        connection.setConnectTimeout(5000);
+                        connection.setReadTimeout(5000);
+
+                        int responseCode = connection.getResponseCode();
+                        if (responseCode == HttpURLConnection.HTTP_OK) {
+                            try (BufferedReader reader = new BufferedReader(
+                                    new InputStreamReader(connection.getInputStream()))) {
+                                StringBuilder response = new StringBuilder();
+                                String line;
+                                while ((line = reader.readLine()) != null) {
+                                    response.append(line);
+                                }
+                                String healthJson = response.toString();
+
+                                // Check if cluster status is green or yellow
+                                if (healthJson.contains("\"status\":\"green\"")
+                                        || healthJson.contains("\"status\":\"yellow\"")) {
+                                    LOG.info("+++++++++++++++++++++++++++++++++ Cluster health is ready: " + healthJson);
+                                    return healthJson;
+                                } else {
+                                    LOG.info("+++++++++++++++++++++++++++++++++ Cluster not ready yet, current status: "
+                                            + healthJson);
+                                    return null;
+                                }
+                            }
+                        } else {
+                            LOG.info("+++++++++++++++++++++++++++++++++ Cluster health check returned code: " + responseCode
+                                    + ", retrying...");
+                            return null;
+                        }
+                    } catch (Exception e) {
+                        LOG.info("+++++++++++++++++++++++++++++++++ Failed to query cluster health: " + e.getMessage()
+                                + ", retrying...");
+                        return null;
+                    }
+                }, result -> result != null);
     }
 
     /**
