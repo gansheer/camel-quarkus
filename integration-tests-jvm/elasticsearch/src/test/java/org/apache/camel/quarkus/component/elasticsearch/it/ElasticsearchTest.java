@@ -22,6 +22,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -30,9 +31,11 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import org.awaitility.Awaitility;
+import org.awaitility.core.ConditionTimeoutException;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.jboss.logging.Logger;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -42,6 +45,12 @@ import static org.hamcrest.Matchers.is;
 @QuarkusTestResource(ElasticsearchTestResource.class)
 class ElasticsearchTest {
     private static final Logger LOG = Logger.getLogger(ElasticsearchTest.class);
+
+    @BeforeEach
+    public void beforeEach() throws ConditionTimeoutException {
+        // Ensure the Elasticsearch cluster is ready before each test
+        waitClusterReady();
+    }
 
     @AfterEach
     public void afterEach() {
@@ -150,10 +159,7 @@ class ElasticsearchTest {
 
     @ParameterizedTest
     @MethodSource("componentNames")
-    public void testElasticsearchBulk(String component) throws Exception {
-        // wait until health is green before attempting the bulk operation
-        queryClusterHealthUntilGreen();
-
+    public void testElasticsearchBulk(String component) {
         String indexName = UUID.randomUUID().toString();
 
         String indexId = RestAssured.given()
@@ -368,18 +374,17 @@ class ElasticsearchTest {
      * Queries the Elasticsearch cluster health status and waits until it's green or yellow.
      * Retries with Awaitility until the cluster is ready.
      *
-     * @return           The cluster health JSON response as a String
-     * @throws Exception if the request fails after all retries
+     * @throws ConditionTimeoutException if the request fails after all retries
      */
-    private String queryClusterHealthUntilGreen() throws Exception {
+    private void waitClusterReady() throws ConditionTimeoutException {
         String hostAddresses = ConfigProvider.getConfig().getValue("camel.component.elasticsearch.host-addresses",
                 String.class);
         String username = ConfigProvider.getConfig().getValue("camel.component.elasticsearch.user", String.class);
         String password = ConfigProvider.getConfig().getValue("camel.component.elasticsearch.password", String.class);
 
-        return Awaitility.await()
+        Awaitility.await()
                 .pollInterval(500, TimeUnit.MILLISECONDS)
-                .atMost(30, TimeUnit.SECONDS)
+                .atMost(10, TimeUnit.SECONDS)
                 .until(() -> {
                     try {
                         URL url = new URL(String.format("http://%s/_cluster/health", hostAddresses));
@@ -425,7 +430,7 @@ class ElasticsearchTest {
                                 + ", retrying...");
                         return null;
                     }
-                }, result -> result != null);
+                }, Objects::nonNull);
     }
 
     /**
