@@ -151,7 +151,7 @@ class ElasticsearchTest {
     @ParameterizedTest
     @MethodSource("componentNames")
     public void testElasticsearchBulk(String component) throws Exception {
-        // wait until health is green befote attempting the bulk operation
+        // wait until health is green before attempting the bulk operation
         queryClusterHealthUntilGreen();
 
         String indexName = UUID.randomUUID().toString();
