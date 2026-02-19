@@ -50,7 +50,7 @@ public class ElasticsearchTestResource implements QuarkusTestResourceLifecycleMa
                     .withEnv("action.destructive_requires_name", "false") // needed for deleting all indexes after each test (allowing _all wildcard)
                     .withEnv("ELASTIC_USERNAME", ELASTICSEARCH_USERNAME)
                     .withEnv("ELASTIC_PASSWORD", ELASTICSEARCH_PASSWORD)
-                    .withEnv("ES_JAVA_OPTS", "-Xms256m -Xmx256m")
+                    .withEnv("ES_JAVA_OPTS", "-Xms512m -Xmx512m")
                     .waitingFor(Wait.forListeningPort());
 
             container.start();
