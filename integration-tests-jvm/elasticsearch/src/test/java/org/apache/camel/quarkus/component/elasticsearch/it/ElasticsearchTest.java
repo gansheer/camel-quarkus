@@ -151,16 +151,7 @@ class ElasticsearchTest {
     @ParameterizedTest
     @MethodSource("componentNames")
     public void testElasticsearchBulk(String component) throws Exception {
-        // After the ping check
-        /*RestAssured.given()
-                .queryParam("component", component)
-                .get("/elasticsearch/ping")
-                .then()
-                .statusCode(200);*/
-
-        // Check cluster health before running bulk operation
-        // queryClusterHealth();
-        // health again until ok -> the test then is ok even with 256m because we wait for the cluster to be green.
+        // wait until health is green befote attempting the bulk operation
         queryClusterHealthUntilGreen();
 
         String indexName = UUID.randomUUID().toString();
@@ -374,49 +365,6 @@ class ElasticsearchTest {
     }
 
     /**
-     * Queries the Elasticsearch cluster health status via HTTP.
-     * Returns the current status immediately without waiting.
-     *
-     * @return           The cluster health response as a String (includes error responses)
-     * @throws Exception if the request fails
-     */
-    private String queryClusterHealth() throws Exception {
-        String hostAddresses = ConfigProvider.getConfig().getValue("camel.component.elasticsearch.host-addresses",
-                String.class);
-        String username = ConfigProvider.getConfig().getValue("camel.component.elasticsearch.user", String.class);
-        String password = ConfigProvider.getConfig().getValue("camel.component.elasticsearch.password", String.class);
-
-        URL url = new URL("http://" + hostAddresses + "/_cluster/health");
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-
-        // Set up Basic Authentication
-        String auth = username + ":" + password;
-        String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
-        connection.setRequestProperty("Authorization", "Basic " + encodedAuth);
-
-        connection.setRequestMethod("GET");
-        connection.setConnectTimeout(5000);
-        connection.setReadTimeout(5000);
-
-        int responseCode = connection.getResponseCode();
-
-        // Read response body (works for both success and error responses)
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(
-                        responseCode == HttpURLConnection.HTTP_OK
-                                ? connection.getInputStream()
-                                : connection.getErrorStream()))) {
-            StringBuilder response = new StringBuilder();
-            response.append("HTTP ").append(responseCode).append(": ");
-            String line;
-            while ((line = reader.readLine()) != null) {
-                response.append(line);
-            }
-            return "***************** ------------------- *********************** " + response.toString();
-        }
-    }
-
-    /**
      * Queries the Elasticsearch cluster health status and waits until it's green or yellow.
      * Retries with Awaitility until the cluster is ready.
      *
@@ -434,14 +382,13 @@ class ElasticsearchTest {
                 .atMost(30, TimeUnit.SECONDS)
                 .until(() -> {
                     try {
-                        URL url = new URL("http://" + hostAddresses + "/_cluster/health");
+                        URL url = new URL(String.format("http://%s/_cluster/health", hostAddresses));
                         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 
                         // Set up Basic Authentication
-                        String auth = username + ":" + password;
+                        String auth = String.format("%s:%s", username, password);
                         String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
                         connection.setRequestProperty("Authorization", "Basic " + encodedAuth);
-
                         connection.setRequestMethod("GET");
                         connection.setConnectTimeout(5000);
                         connection.setReadTimeout(5000);
@@ -460,21 +407,21 @@ class ElasticsearchTest {
                                 // Check if cluster status is green or yellow
                                 if (healthJson.contains("\"status\":\"green\"")
                                         || healthJson.contains("\"status\":\"yellow\"")) {
-                                    LOG.info("+++++++++++++++++++++++++++++++++ Cluster health is ready: " + healthJson);
+                                    LOG.info("Cluster health is ready: " + healthJson);
                                     return healthJson;
                                 } else {
-                                    LOG.info("+++++++++++++++++++++++++++++++++ Cluster not ready yet, current status: "
+                                    LOG.info("Cluster not ready yet, current status: "
                                             + healthJson);
                                     return null;
                                 }
                             }
                         } else {
-                            LOG.info("+++++++++++++++++++++++++++++++++ Cluster health check returned code: " + responseCode
+                            LOG.info("Cluster health check returned code: " + responseCode
                                     + ", retrying...");
                             return null;
                         }
                     } catch (Exception e) {
-                        LOG.info("+++++++++++++++++++++++++++++++++ Failed to query cluster health: " + e.getMessage()
+                        LOG.info("Failed to query cluster health: " + e.getMessage()
                                 + ", retrying...");
                         return null;
                     }
