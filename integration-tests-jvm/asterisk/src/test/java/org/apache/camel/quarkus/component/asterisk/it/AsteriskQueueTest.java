@@ -16,19 +16,44 @@
  */
 package org.apache.camel.quarkus.component.asterisk.it;
 
+import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.common.http.TestHTTPEndpoint;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.Test;
 
+import static org.hamcrest.Matchers.notNullValue;
+
+/**
+ * Integration tests for Asterisk queue operations.
+ * These tests require a properly configured Asterisk container with AMI enabled.
+ */
 @QuarkusTest
 @TestHTTPEndpoint(AsteriskResource.class)
-class AsteriskTest {
+@QuarkusTestResource(AsteriskTestResource.class)
+public class AsteriskQueueTest {
 
     @Test
-    public void loadComponentAsterisk() {
-        RestAssured.get("/load/component/asterisk")
+    public void testQueueStatus() {
+        RestAssured
+                .given()
+                .when()
+                .get("/queue/status/test-queue")
                 .then()
-                .statusCode(200);
+                .statusCode(200)
+                .body(notNullValue());
+    }
+
+    @Test
+    public void testQueueStatusAction() {
+        RestAssured
+                .given()
+                .contentType("text/plain")
+                .body("")
+                .when()
+                .post("/action/QUEUE_STATUS")
+                .then()
+                .statusCode(200)
+                .body(notNullValue());
     }
 }
