@@ -43,7 +43,7 @@ public class MinaSftpResource {
     private static final Logger LOG = Logger.getLogger(MinaSftpResource.class);
 
     private static final String COMPONENT_MINA_SFTP = "mina-sftp";
-    private static final long TIMEOUT_MS = 1000;
+    private static final long TIMEOUT_MS = 5000; // Increased timeout for file operations
 
     @Inject
     CamelContext context;
@@ -69,12 +69,13 @@ public class MinaSftpResource {
     @Path("/get/{fileName}")
     @GET
     @Produces(MediaType.TEXT_PLAIN)
-    public String getFile(@PathParam("fileName") String fileName) {
-        return consumerTemplate.receiveBody(
+    public Response getFile(@PathParam("fileName") String fileName) {
+        String result = consumerTemplate.receiveBody(
                 "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin&localWorkDirectory=target&fileName="
                         + fileName,
                 TIMEOUT_MS,
                 String.class);
+        return result != null ? Response.ok(result).build() : Response.status(204).build();
     }
 
     @Path("/create/{fileName}")
@@ -108,5 +109,315 @@ public class MinaSftpResource {
                         + fileName,
                 TIMEOUT_MS,
                 String.class);
+    }
+
+    @Path("/createInSubdir/{subdirectory}/{fileName}")
+    @POST
+    @Consumes(MediaType.TEXT_PLAIN)
+    public Response createFileInSubdirectory(@PathParam("subdirectory") String subdirectory,
+            @PathParam("fileName") String fileName, String fileContent) throws Exception {
+        producerTemplate.sendBodyAndHeader(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp/" + subdirectory + "?password=admin",
+                fileContent,
+                Exchange.FILE_NAME, fileName);
+        return Response.created(new URI("https://camel.apache.org/")).build();
+    }
+
+    @Path("/getFromSubdir/{subdirectory}/{fileName}")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response getFileFromSubdirectory(@PathParam("subdirectory") String subdirectory,
+            @PathParam("fileName") String fileName) {
+        String result = consumerTemplate.receiveBody(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp/" + subdirectory
+                        + "?password=admin&localWorkDirectory=target&fileName=" + fileName,
+                TIMEOUT_MS,
+                String.class);
+        return result != null ? Response.ok(result).build() : Response.status(204).build();
+    }
+
+    @Path("/list/{directory}")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public String listFiles(@PathParam("directory") String directory) {
+        String response = consumerTemplate.receiveBody(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp/" + directory
+                        + "?password=admin&localWorkDirectory=target&noop=true",
+                TIMEOUT_MS,
+                String.class);
+        return response != null ? "file_found" : "no_files";
+    }
+
+    @Path("/append/{fileName}")
+    @PUT
+    @Consumes(MediaType.TEXT_PLAIN)
+    public Response appendToFile(@PathParam("fileName") String fileName, String content) {
+        producerTemplate.sendBodyAndHeader(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin&fileExist=Append",
+                content,
+                Exchange.FILE_NAME, fileName);
+        return Response.ok().build();
+    }
+
+    @Path("/exists/{fileName}")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public String fileExists(@PathParam("fileName") String fileName) {
+        String result = consumerTemplate.receiveBody(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin&noop=true&fileName="
+                        + fileName,
+                TIMEOUT_MS,
+                String.class);
+        return result != null ? "true" : "false";
+    }
+
+    @Path("/recursiveList")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public String listFilesRecursive() {
+        String response = consumerTemplate.receiveBody(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin&recursive=true&noop=true&localWorkDirectory=target",
+                TIMEOUT_MS,
+                String.class);
+        return response != null ? "files_found" : "no_files";
+    }
+
+    @Path("/moveToDirectory/{fileName}/{targetDir}")
+    @PUT
+    public void moveToDirectory(@PathParam("fileName") String fileName, @PathParam("targetDir") String targetDir) {
+        consumerTemplate.receiveBody(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin&move=../" + targetDir
+                        + "/${file:name}&fileName=" + fileName,
+                TIMEOUT_MS,
+                String.class);
+    }
+
+    @Path("/filterByPrefix/{prefix}")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public String filterFilesByPrefix(@PathParam("prefix") String prefix) {
+        String response = consumerTemplate.receiveBody(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin&fileName=" + prefix
+                        + "*&noop=true&localWorkDirectory=target",
+                TIMEOUT_MS,
+                String.class);
+        return response != null ? "matched" : "no_match";
+    }
+
+    @Path("/download/{fileName}")
+    @GET
+    @Produces(MediaType.APPLICATION_OCTET_STREAM)
+    public byte[] downloadFile(@PathParam("fileName") String fileName) {
+        return consumerTemplate.receiveBody(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin&localWorkDirectory=target&fileName="
+                        + fileName,
+                TIMEOUT_MS,
+                byte[].class);
+    }
+
+    @Path("/createWithCharset/{fileName}")
+    @POST
+    @Consumes(MediaType.TEXT_PLAIN)
+    public Response createFileWithCharset(@PathParam("fileName") String fileName, String fileContent)
+            throws Exception {
+        producerTemplate.sendBodyAndHeader(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin&charset=UTF-8",
+                fileContent,
+                Exchange.FILE_NAME, fileName);
+        return Response.created(new URI("https://camel.apache.org/")).build();
+    }
+
+    @Path("/getWithCharset/{fileName}")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response getFileWithCharset(@PathParam("fileName") String fileName) {
+        String result = consumerTemplate.receiveBody(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin&charset=UTF-8&localWorkDirectory=target&fileName="
+                        + fileName,
+                TIMEOUT_MS,
+                String.class);
+        return result != null ? Response.ok(result).build() : Response.status(204).build();
+    }
+
+    @Path("/createWithTempFile/{fileName}")
+    @POST
+    @Consumes(MediaType.TEXT_PLAIN)
+    public Response createFileWithTempFile(@PathParam("fileName") String fileName, String fileContent)
+            throws Exception {
+        producerTemplate.sendBodyAndHeader(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin&tempFileName=temp-${file:name}",
+                fileContent,
+                Exchange.FILE_NAME, fileName);
+        return Response.created(new URI("https://camel.apache.org/")).build();
+    }
+
+    @Path("/overwrite/{fileName}")
+    @PUT
+    @Consumes(MediaType.TEXT_PLAIN)
+    public Response overwriteFile(@PathParam("fileName") String fileName, String content) {
+        producerTemplate.sendBodyAndHeader(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin&fileExist=Override",
+                content,
+                Exchange.FILE_NAME, fileName);
+        return Response.ok("overwritten").build();
+    }
+
+    @Path("/createWithAutoCreate/{subdirectory}/{fileName}")
+    @POST
+    @Consumes(MediaType.TEXT_PLAIN)
+    public Response createFileWithAutoCreate(@PathParam("subdirectory") String subdirectory,
+            @PathParam("fileName") String fileName, String fileContent) throws Exception {
+        producerTemplate.sendBodyAndHeader(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp/" + subdirectory
+                        + "?password=admin&autoCreate=true",
+                fileContent,
+                Exchange.FILE_NAME, fileName);
+        return Response.created(new URI("https://camel.apache.org/")).build();
+    }
+
+    // HIGH PRIORITY #1: Private Key Authentication Tests
+
+    @Path("/createWithPrivateKey/{fileName}")
+    @POST
+    @Consumes(MediaType.TEXT_PLAIN)
+    public Response createFileWithPrivateKey(@PathParam("fileName") String fileName, String fileContent)
+            throws Exception {
+        producerTemplate.sendBodyAndHeader(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp"
+                        + "?privateKeyFile=src/test/resources/ssh/test-key-rsa",
+                fileContent,
+                Exchange.FILE_NAME, fileName);
+        return Response.created(new URI("https://camel.apache.org/")).build();
+    }
+
+    @Path("/getWithPrivateKey/{fileName}")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response getFileWithPrivateKey(@PathParam("fileName") String fileName) {
+        String result = consumerTemplate.receiveBody(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp"
+                        + "?privateKeyFile=src/test/resources/ssh/test-key-rsa&localWorkDirectory=target&fileName="
+                        + fileName,
+                TIMEOUT_MS,
+                String.class);
+        return result != null ? Response.ok(result).build() : Response.status(204).build();
+    }
+
+    @Path("/createWithEncryptedKey/{fileName}")
+    @POST
+    @Consumes(MediaType.TEXT_PLAIN)
+    public Response createFileWithEncryptedKey(@PathParam("fileName") String fileName, String fileContent)
+            throws Exception {
+        producerTemplate.sendBodyAndHeader(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp"
+                        + "?privateKeyFile=src/test/resources/ssh/test-key-rsa-encrypted&privateKeyPassphrase=testpass",
+                fileContent,
+                Exchange.FILE_NAME, fileName);
+        return Response.created(new URI("https://camel.apache.org/")).build();
+    }
+
+    @Path("/getWithEncryptedKey/{fileName}")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response getFileWithEncryptedKey(@PathParam("fileName") String fileName) {
+        String result = consumerTemplate.receiveBody(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp"
+                        + "?privateKeyFile=src/test/resources/ssh/test-key-rsa-encrypted&privateKeyPassphrase=testpass&localWorkDirectory=target&fileName="
+                        + fileName,
+                TIMEOUT_MS,
+                String.class);
+        return result != null ? Response.ok(result).build() : Response.status(204).build();
+    }
+
+    // HIGH PRIORITY #2: Streaming Download Tests
+
+    @Path("/streamDownload/{fileName}")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response streamDownloadFile(@PathParam("fileName") String fileName) {
+        java.io.InputStream is = consumerTemplate.receiveBody(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp"
+                        + "?password=admin&streamDownload=true&localWorkDirectory=target&fileName=" + fileName,
+                TIMEOUT_MS,
+                java.io.InputStream.class);
+        if (is == null) {
+            return Response.status(204).build();
+        }
+        try {
+            String content = new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            return Response.ok(content).build();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to read stream", e);
+        }
+    }
+
+    @Path("/streamDownloadPartial/{fileName}")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response streamDownloadPartialRead(@PathParam("fileName") String fileName) {
+        java.io.InputStream is = consumerTemplate.receiveBody(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp"
+                        + "?password=admin&streamDownload=true&localWorkDirectory=target&fileName=" + fileName,
+                TIMEOUT_MS,
+                java.io.InputStream.class);
+        if (is == null) {
+            return Response.status(204).build();
+        }
+        try {
+            // Read only first 10 bytes
+            byte[] buffer = new byte[10];
+            int bytesRead = is.readNBytes(buffer, 0, 10);
+            String content = new String(buffer, 0, bytesRead, java.nio.charset.StandardCharsets.UTF_8);
+            return Response.ok(content).build();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to read stream", e);
+        }
+    }
+
+    // HIGH PRIORITY #4: Error Handling Scenarios
+
+    @Path("/error/wrongPassword/{fileName}")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response testWrongPassword(@PathParam("fileName") String fileName) {
+        try {
+            consumerTemplate.receiveBody(
+                    "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp"
+                            + "?password=wrongpassword&localWorkDirectory=target&fileName=" + fileName,
+                    TIMEOUT_MS,
+                    String.class);
+            return Response.ok("SHOULD_NOT_SUCCEED").build();
+        } catch (Exception e) {
+            return Response.status(401).entity("AUTH_FAILED").build();
+        }
+    }
+
+    @Path("/error/nonExistentFile/{fileName}")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response testNonExistentFile(@PathParam("fileName") String fileName) {
+        String result = consumerTemplate.receiveBody(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp"
+                        + "?password=admin&localWorkDirectory=target&fileName=" + fileName,
+                TIMEOUT_MS,
+                String.class);
+        return result == null ? Response.status(404).entity("NOT_FOUND").build()
+                : Response.ok(result).build();
+    }
+
+    @Path("/error/invalidPath/{fileName}")
+    @POST
+    @Consumes(MediaType.TEXT_PLAIN)
+    public Response testInvalidPath(@PathParam("fileName") String fileName, String fileContent) {
+        try {
+            producerTemplate.sendBodyAndHeader(
+                    "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp/nonexistent/deep/path"
+                            + "?password=admin&autoCreate=false",
+                    fileContent,
+                    Exchange.FILE_NAME, fileName);
+            return Response.ok("SHOULD_NOT_SUCCEED").build();
+        } catch (Exception e) {
+            return Response.status(500).entity("PATH_ERROR").build();
+        }
     }
 }

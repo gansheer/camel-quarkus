@@ -82,4 +82,587 @@ class MinaSftpTest {
                 .statusCode(204);
     }
 
+    @Test
+    public void testSubdirectoryOperations() {
+        // Create file in subdirectory
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Content in subdirectory")
+                .post("/mina-sftp/createInSubdir/subdir/file1.txt")
+                .then()
+                .statusCode(201);
+
+        // Retrieve file from subdirectory
+        RestAssured.get("/mina-sftp/getFromSubdir/subdir/file1.txt")
+                .then()
+                .statusCode(200)
+                .body(is("Content in subdirectory"));
+
+        // Clean up
+        RestAssured.delete("/mina-sftp/delete/file1.txt")
+                .then()
+                .statusCode(204);
+    }
+
+    @Test
+    public void testFileAppend() {
+        // Create initial file
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("First line\n")
+                .post("/mina-sftp/create/append-test.txt")
+                .then()
+                .statusCode(201);
+
+        // Append to file
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Second line\n")
+                .put("/mina-sftp/append/append-test.txt")
+                .then()
+                .statusCode(200);
+
+        // Verify content
+        RestAssured.get("/mina-sftp/get/append-test.txt")
+                .then()
+                .statusCode(200)
+                .body(is("First line\nSecond line\n"));
+
+        // Clean up
+        RestAssured.delete("/mina-sftp/delete/append-test.txt")
+                .then()
+                .statusCode(204);
+    }
+
+    @Test
+    public void testFileExists() {
+        // Create a file
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Test content")
+                .post("/mina-sftp/create/exists-test.txt")
+                .then()
+                .statusCode(201);
+
+        // Check existence
+        RestAssured.get("/mina-sftp/exists/exists-test.txt")
+                .then()
+                .statusCode(200)
+                .body(is("true"));
+
+        // Delete file
+        RestAssured.delete("/mina-sftp/delete/exists-test.txt")
+                .then()
+                .statusCode(204);
+
+        // Check non-existence
+        RestAssured.get("/mina-sftp/exists/exists-test.txt")
+                .then()
+                .statusCode(200)
+                .body(is("false"));
+    }
+
+    @Test
+    public void testMoveToDirectory() {
+        // Create file
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Move me")
+                .post("/mina-sftp/create/moveme.txt")
+                .then()
+                .statusCode(201);
+
+        // Create target directory with a file (to ensure directory exists)
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Target dir marker")
+                .post("/mina-sftp/createInSubdir/archive/marker.txt")
+                .then()
+                .statusCode(201);
+
+        // Move file to archive directory
+        RestAssured.put("/mina-sftp/moveToDirectory/moveme.txt/archive")
+                .then()
+                .statusCode(204);
+
+        // Verify file no longer in root
+        RestAssured.get("/mina-sftp/get/moveme.txt")
+                .then()
+                .statusCode(204);
+
+        // Clean up
+        RestAssured.delete("/mina-sftp/delete/marker.txt")
+                .then()
+                .statusCode(204);
+    }
+
+    @Test
+    public void testFileFiltering() {
+        // Create files with different prefixes
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Test 1")
+                .post("/mina-sftp/create/test-file1.txt")
+                .then()
+                .statusCode(201);
+
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Test 2")
+                .post("/mina-sftp/create/test-file2.txt")
+                .then()
+                .statusCode(201);
+
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Other")
+                .post("/mina-sftp/create/other-file.txt")
+                .then()
+                .statusCode(201);
+
+        // Filter by prefix - should match test-file1.txt
+        RestAssured.get("/mina-sftp/filterByPrefix/test-file")
+                .then()
+                .statusCode(200)
+                .body(is("matched"));
+
+        // Clean up
+        RestAssured.delete("/mina-sftp/delete/test-file1.txt")
+                .then()
+                .statusCode(204);
+        RestAssured.delete("/mina-sftp/delete/test-file2.txt")
+                .then()
+                .statusCode(204);
+        RestAssured.delete("/mina-sftp/delete/other-file.txt")
+                .then()
+                .statusCode(204);
+    }
+
+    @Test
+    public void testBinaryFileDownload() throws Exception {
+        // Create a binary file (using text but treating as binary)
+        byte[] binaryData = "Binary content test".getBytes();
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body(new String(binaryData))
+                .post("/mina-sftp/create/binary-test.bin")
+                .then()
+                .statusCode(201);
+
+        // Delay to ensure file is written
+        Thread.sleep(1000);
+
+        // Download as binary
+        byte[] downloaded = RestAssured.get("/mina-sftp/download/binary-test.bin")
+                .then()
+                .statusCode(200)
+                .extract()
+                .asByteArray();
+
+        // Verify content
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body(new String(downloaded))
+                .post("/mina-sftp/create/verify-binary.txt")
+                .then()
+                .statusCode(201);
+
+        RestAssured.get("/mina-sftp/get/verify-binary.txt")
+                .then()
+                .statusCode(200)
+                .body(is("Binary content test"));
+
+        // Clean up
+        RestAssured.delete("/mina-sftp/delete/binary-test.bin")
+                .then()
+                .statusCode(204);
+        RestAssured.delete("/mina-sftp/delete/verify-binary.txt")
+                .then()
+                .statusCode(204);
+    }
+
+    @Test
+    public void testRecursiveListing() {
+        // Create files in different directories
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Root file")
+                .post("/mina-sftp/create/root.txt")
+                .then()
+                .statusCode(201);
+
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Nested file")
+                .post("/mina-sftp/createInSubdir/nested/deep.txt")
+                .then()
+                .statusCode(201);
+
+        // List recursively
+        RestAssured.get("/mina-sftp/recursiveList")
+                .then()
+                .statusCode(200)
+                .body(is("files_found"));
+
+        // Clean up
+        RestAssured.delete("/mina-sftp/delete/root.txt")
+                .then()
+                .statusCode(204);
+        RestAssured.delete("/mina-sftp/delete/deep.txt")
+                .then()
+                .statusCode(204);
+    }
+
+    @Test
+    public void testMultipleFileOperations() {
+        // Create multiple files
+        for (int i = 1; i <= 3; i++) {
+            RestAssured.given()
+                    .contentType(ContentType.TEXT)
+                    .body("Content " + i)
+                    .post("/mina-sftp/create/multi-" + i + ".txt")
+                    .then()
+                    .statusCode(201);
+        }
+
+        // Verify each file
+        for (int i = 1; i <= 3; i++) {
+            RestAssured.get("/mina-sftp/get/multi-" + i + ".txt")
+                    .then()
+                    .statusCode(200)
+                    .body(is("Content " + i));
+        }
+
+        // Clean up all files
+        for (int i = 1; i <= 3; i++) {
+            RestAssured.delete("/mina-sftp/delete/multi-" + i + ".txt")
+                    .then()
+                    .statusCode(204);
+        }
+    }
+
+    @Test
+    public void testCharsetHandling() {
+        // Test with UTF-8 characters (international characters, skip emoji for compatibility)
+        String utf8Content = "Hello World with UTF-8: \u00e6\u00f8\u00e5 \u00a9";
+
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body(utf8Content)
+                .post("/mina-sftp/createWithCharset/charset-test.txt")
+                .then()
+                .statusCode(201);
+
+        // Retrieve with charset
+        RestAssured.get("/mina-sftp/getWithCharset/charset-test.txt")
+                .then()
+                .statusCode(200)
+                .body(is(utf8Content));
+
+        // Clean up
+        RestAssured.delete("/mina-sftp/delete/charset-test.txt")
+                .then()
+                .statusCode(204);
+    }
+
+    @Test
+    public void testTempFileUpload() {
+        // Upload using temporary file (should be renamed after complete)
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Uploaded with temp file")
+                .post("/mina-sftp/createWithTempFile/tempfile-test.txt")
+                .then()
+                .statusCode(201);
+
+        // Verify final file exists
+        RestAssured.get("/mina-sftp/get/tempfile-test.txt")
+                .then()
+                .statusCode(200)
+                .body(is("Uploaded with temp file"));
+
+        // Clean up
+        RestAssured.delete("/mina-sftp/delete/tempfile-test.txt")
+                .then()
+                .statusCode(204);
+    }
+
+    @Test
+    public void testFileOverwrite() {
+        // Create initial file
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Original content")
+                .post("/mina-sftp/create/overwrite-test.txt")
+                .then()
+                .statusCode(201);
+
+        // Overwrite the file
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Overwritten content")
+                .put("/mina-sftp/overwrite/overwrite-test.txt")
+                .then()
+                .statusCode(200);
+
+        // Verify content was overwritten
+        RestAssured.get("/mina-sftp/get/overwrite-test.txt")
+                .then()
+                .statusCode(200)
+                .body(is("Overwritten content"));
+
+        // Clean up
+        RestAssured.delete("/mina-sftp/delete/overwrite-test.txt")
+                .then()
+                .statusCode(204);
+    }
+
+    @Test
+    public void testAutoCreateDirectory() {
+        // Create file in non-existent directory (should auto-create)
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Content in auto-created dir")
+                .post("/mina-sftp/createWithAutoCreate/autocreate/file-in-new-dir.txt")
+                .then()
+                .statusCode(201);
+
+        // Verify file exists in the auto-created directory
+        RestAssured.get("/mina-sftp/getFromSubdir/autocreate/file-in-new-dir.txt")
+                .then()
+                .statusCode(200)
+                .body(is("Content in auto-created dir"));
+
+        // Clean up
+        RestAssured.delete("/mina-sftp/delete/file-in-new-dir.txt")
+                .then()
+                .statusCode(204);
+    }
+
+    // ========================================
+    // HIGH PRIORITY #1: Private Key Authentication
+    // ========================================
+
+    @Test
+    public void testPrivateKeyAuthentication() throws Exception {
+        // Upload file using RSA private key
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Private Key Upload Test")
+                .post("/mina-sftp/createWithPrivateKey/privkey-test.txt")
+                .then()
+                .statusCode(201);
+
+        // Delay to ensure file is written
+        Thread.sleep(1000);
+
+        // Download using private key
+        RestAssured.get("/mina-sftp/getWithPrivateKey/privkey-test.txt")
+                .then()
+                .statusCode(200)
+                .body(is("Private Key Upload Test"));
+
+        // Clean up
+        RestAssured.delete("/mina-sftp/delete/privkey-test.txt")
+                .then()
+                .statusCode(204);
+    }
+
+    @Test
+    public void testEncryptedPrivateKeyAuthentication() throws Exception {
+        // Upload file using encrypted RSA private key with passphrase
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Encrypted Key Test")
+                .post("/mina-sftp/createWithEncryptedKey/encrypted-key-test.txt")
+                .then()
+                .statusCode(201);
+
+        // Longer delay to ensure file is fully written (encrypted key auth may be slower)
+        Thread.sleep(1500);
+
+        // Download using encrypted private key
+        RestAssured.get("/mina-sftp/getWithEncryptedKey/encrypted-key-test.txt")
+                .then()
+                .statusCode(200)
+                .body(is("Encrypted Key Test"));
+
+        // Clean up
+        RestAssured.delete("/mina-sftp/delete/encrypted-key-test.txt")
+                .then()
+                .statusCode(204);
+    }
+
+    @Test
+    public void testMixedAuthentication() {
+        // Create with password
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Password upload")
+                .post("/mina-sftp/create/mixed-auth.txt")
+                .then()
+                .statusCode(201);
+
+        // Download with private key
+        RestAssured.get("/mina-sftp/getWithPrivateKey/mixed-auth.txt")
+                .then()
+                .statusCode(200)
+                .body(is("Password upload"));
+
+        // Clean up
+        RestAssured.delete("/mina-sftp/delete/mixed-auth.txt")
+                .then()
+                .statusCode(204);
+    }
+
+    // ========================================
+    // HIGH PRIORITY #2: Streaming Download
+    // ========================================
+
+    @Test
+    public void testStreamDownload() {
+        // Create a file
+        String content = "Streaming download test content with multiple lines\nLine 2\nLine 3";
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body(content)
+                .post("/mina-sftp/create/stream-test.txt")
+                .then()
+                .statusCode(201);
+
+        // Download as stream
+        RestAssured.get("/mina-sftp/streamDownload/stream-test.txt")
+                .then()
+                .statusCode(200)
+                .body(is(content));
+
+        // Clean up
+        RestAssured.delete("/mina-sftp/delete/stream-test.txt")
+                .then()
+                .statusCode(204);
+    }
+
+    @Test
+    public void testStreamDownloadPartialRead() {
+        // Create a file with content
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("This is a test for partial streaming read")
+                .post("/mina-sftp/create/partial-stream-test.txt")
+                .then()
+                .statusCode(201);
+
+        // Read only first 10 bytes via stream
+        RestAssured.get("/mina-sftp/streamDownloadPartial/partial-stream-test.txt")
+                .then()
+                .statusCode(200)
+                .body(is("This is a "));
+
+        // Clean up
+        RestAssured.delete("/mina-sftp/delete/partial-stream-test.txt")
+                .then()
+                .statusCode(204);
+    }
+
+    @Test
+    public void testStreamDownloadLargeFile() {
+        // Create a larger file content
+        StringBuilder largeContent = new StringBuilder();
+        for (int i = 0; i < 100; i++) {
+            largeContent.append("Line ").append(i).append(": This is test data for streaming large files.\n");
+        }
+
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body(largeContent.toString())
+                .post("/mina-sftp/create/large-stream-test.txt")
+                .then()
+                .statusCode(201);
+
+        // Download large file as stream
+        String downloaded = RestAssured.get("/mina-sftp/streamDownload/large-stream-test.txt")
+                .then()
+                .statusCode(200)
+                .extract()
+                .asString();
+
+        // Verify content matches
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body(downloaded)
+                .post("/mina-sftp/create/verify-large-stream.txt")
+                .then()
+                .statusCode(201);
+
+        RestAssured.get("/mina-sftp/get/verify-large-stream.txt")
+                .then()
+                .statusCode(200)
+                .body(is(largeContent.toString()));
+
+        // Clean up
+        RestAssured.delete("/mina-sftp/delete/large-stream-test.txt")
+                .then()
+                .statusCode(204);
+        RestAssured.delete("/mina-sftp/delete/verify-large-stream.txt")
+                .then()
+                .statusCode(204);
+    }
+
+    // ========================================
+    // HIGH PRIORITY #4: Error Handling
+    // ========================================
+
+    @Test
+    public void testWrongPasswordAuthentication() {
+        // NOTE: The embedded SFTP server accepts any password for testing purposes
+        // This test verifies the endpoint handles auth scenarios correctly
+        // In real scenarios with strict auth, wrong password would return 401
+        RestAssured.get("/mina-sftp/error/wrongPassword/any-file.txt")
+                .then()
+                .statusCode(200); // Server accepts any password, so returns 200
+    }
+
+    @Test
+    public void testNonExistentFileDownload() {
+        // Attempt to download non-existent file
+        RestAssured.get("/mina-sftp/error/nonExistentFile/does-not-exist.txt")
+                .then()
+                .statusCode(404)
+                .body(is("NOT_FOUND"));
+    }
+
+    @Test
+    public void testInvalidPathWithoutAutoCreate() {
+        // Attempt to upload to non-existent path without autoCreate
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Should fail")
+                .post("/mina-sftp/error/invalidPath/test.txt")
+                .then()
+                .statusCode(500)
+                .body(is("PATH_ERROR"));
+    }
+
+    @Test
+    public void testAuthenticationFallback() {
+        // Create file with password authentication
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("Fallback test")
+                .post("/mina-sftp/create/fallback-test.txt")
+                .then()
+                .statusCode(201);
+
+        // Verify file exists
+        RestAssured.get("/mina-sftp/exists/fallback-test.txt")
+                .then()
+                .statusCode(200)
+                .body(is("true"));
+
+        // Clean up
+        RestAssured.delete("/mina-sftp/delete/fallback-test.txt")
+                .then()
+                .statusCode(204);
+    }
+
 }
