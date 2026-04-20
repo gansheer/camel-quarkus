@@ -402,6 +402,31 @@ public class MinaSftpResource {
                 String.class);
     }
 
+    @Path("/cipherCbc/create/{fileName}")
+    @POST
+    @Consumes(MediaType.TEXT_PLAIN)
+    public Response createFileWithCbcCipher(@PathParam("fileName") String fileName, String fileContent)
+            throws Exception {
+        producerTemplate.sendBodyAndHeader(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin&preferredAuthentications=password&ciphers=aes256-cbc,aes128-cbc",
+                fileContent,
+                Exchange.FILE_NAME, fileName);
+        return Response
+                .created(new URI("https://camel.apache.org/"))
+                .build();
+    }
+
+    @Path("/cipherCbc/get/{fileName}")
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public String getFileWithCbcCipher(@PathParam("fileName") String fileName) {
+        return consumerTemplate.receiveBody(
+                "mina-sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin&preferredAuthentications=password&ciphers=aes256-cbc,aes128-cbc&localWorkDirectory=target&fileName="
+                        + fileName,
+                TIMEOUT_MS,
+                String.class);
+    }
+
     @Path("/cipherChaCha20/create/{fileName}")
     @POST
     @Consumes(MediaType.TEXT_PLAIN)

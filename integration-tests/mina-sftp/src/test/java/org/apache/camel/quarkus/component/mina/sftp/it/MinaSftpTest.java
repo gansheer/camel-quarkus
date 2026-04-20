@@ -22,6 +22,7 @@ import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import io.smallrye.certs.Format;
 import io.smallrye.certs.junit5.Certificate;
+import org.apache.camel.quarkus.test.DisabledIfFipsMode;
 import org.apache.camel.quarkus.test.support.certificate.TestCertificates;
 import org.apache.camel.quarkus.test.support.sftp.SftpTestResource;
 import org.junit.jupiter.api.Test;
@@ -161,6 +162,7 @@ class MinaSftpTest {
     }
 
     @Test
+    @DisabledIfFipsMode // HmacSHA256 cipher not available in FIPS mode
     void testCustomCipherConfiguration() {
         RestAssured.given()
                 .contentType(ContentType.TEXT)
@@ -180,6 +182,7 @@ class MinaSftpTest {
     }
 
     @Test
+    @DisabledIfFipsMode // AES/GCM/NoPadding cipher not available in FIPS mode
     void testGcmCipher() {
         RestAssured.given()
                 .contentType(ContentType.TEXT)
@@ -194,6 +197,25 @@ class MinaSftpTest {
                 .body(is("GCM cipher test - Authenticated Encryption"));
 
         RestAssured.delete("/mina-sftp/delete/gcm.txt")
+                .then()
+                .statusCode(204);
+    }
+
+    @Test
+    void testCbcCipher() {
+        RestAssured.given()
+                .contentType(ContentType.TEXT)
+                .body("CBC cipher test - AES-CBC")
+                .post("/mina-sftp/cipherCbc/create/cbc.txt")
+                .then()
+                .statusCode(201);
+
+        RestAssured.get("/mina-sftp/cipherCbc/get/cbc.txt")
+                .then()
+                .statusCode(200)
+                .body(is("CBC cipher test - AES-CBC"));
+
+        RestAssured.delete("/mina-sftp/delete/cbc.txt")
                 .then()
                 .statusCode(204);
     }
