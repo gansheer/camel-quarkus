@@ -16,17 +16,27 @@
  */
 package org.apache.camel.quarkus.test.support.sftp;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.TimeUnit;
+import java.security.GeneralSecurityException;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.SecureRandom;
+import java.security.spec.ECGenParameterSpec;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Collections;
 
+import org.apache.sshd.certificate.OpenSshCertificateBuilder;
+import org.apache.sshd.common.config.keys.OpenSshCertificate;
+import org.apache.sshd.common.config.keys.writer.openssh.OpenSSHKeyEncryptionContext;
+import org.apache.sshd.common.config.keys.writer.openssh.OpenSSHKeyPairResourceWriter;
 import org.jboss.logging.Logger;
 
 /**
- * Generates SSH certificates using ssh-keygen for testing purposes.
+ * Generates SSH certificates using Apache SSHD for testing purposes.
  */
 public class SftpCertificates {
     private static final Logger LOGGER = Logger.getLogger(SftpCertificates.class);
@@ -52,6 +62,16 @@ public class SftpCertificates {
     private final Path userPubKeyRsaPath;
     private final Path userCertRsaPath;
 
+    // In-memory key pairs
+    private KeyPair userCaKeyPair;
+    private KeyPair userCaRsaKeyPair;
+    private KeyPair userKeyPair;
+    private KeyPair hostCaKeyPair;
+    private KeyPair hostKeyPair;
+    private KeyPair ftpKeyPair;
+    private KeyPair ftpEncryptedKeyPair;
+    private KeyPair userKeyRsaPair;
+
     private SftpCertificates(Path sshDir) {
         this.sshDir = sshDir;
         this.userCaKeyPath = sshDir.resolve("user_ca");
@@ -76,94 +96,159 @@ public class SftpCertificates {
     }
 
     /**
-     * Generate all required SSH certificates using ssh-keygen.
+     * Generate all required SSH certificates using Apache SSHD.
      */
-    public static SftpCertificates generate(Path sshDir) throws IOException, InterruptedException {
+    public static SftpCertificates generate(Path sshDir) throws Exception {
         SftpCertificates certs = new SftpCertificates(sshDir);
         certs.generateAll();
         return certs;
     }
 
-    private void generateAll() throws IOException, InterruptedException {
-        runSshKeygen("-t", "ed25519", "-f", userCaKeyPath.toString(), "-N", "", "-C", "user-ca-ed25519");
+    private void generateAll() throws Exception {
+        // Register BouncyCastle provider for Ed25519 support
+        java.security.Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
+
+        SecureRandom random = new SecureRandom();
+
+        userCaKeyPair = generateEd25519KeyPair();
+        writeKeyPair(userCaKeyPair, userCaKeyPath, userCaPubKeyPath, "user-ca-ed25519", null);
         LOGGER.debug("Generated Ed25519 user CA key pair");
 
-        runSshKeygen("-t", "rsa", "-b", "2048", "-f", userCaRsaKeyPath.toString(), "-N", "", "-C", "user-ca-rsa");
+        userCaRsaKeyPair = generateRsaKeyPair(2048);
+        writeKeyPair(userCaRsaKeyPair, userCaRsaKeyPath, userCaRsaPubKeyPath, "user-ca-rsa", null);
         LOGGER.debug("Generated RSA user CA key pair");
 
-        runSshKeygen("-t", "ed25519", "-f", userKeyPath.toString(), "-N", "", "-C", "test-user-ed25519");
+        userKeyPair = generateEd25519KeyPair();
+        writeKeyPair(userKeyPair, userKeyPath, userPubKeyPath, "test-user-ed25519", null);
         LOGGER.debug("Generated Ed25519 user key pair");
 
-        runSshKeygen("-s", userCaKeyPath.toString(),
-                "-I", "test-user-ed25519",
-                "-n", "admin",
-                "-V", "-1m:+365d",
-                userPubKeyPath.toString());
+        OpenSshCertificate userCert = OpenSshCertificateBuilder.userCertificate()
+                .serial(random.nextLong() & Long.MAX_VALUE)
+                .publicKey(userKeyPair.getPublic())
+                .id("test-user-ed25519")
+                .principals(Collections.singletonList("admin"))
+                .validAfter(Instant.now().minus(Duration.ofMinutes(1)))
+                .validBefore(Instant.now().plus(Duration.ofDays(365)))
+                .sign(userCaKeyPair);
+        writeCertificate(userCert, userCertPath, "test-user-ed25519");
         LOGGER.debug("Signed Ed25519 user certificate with Ed25519 CA");
 
-        runSshKeygen("-t", "rsa", "-b", "2048", "-f", userKeyRsaPath.toString(), "-N", "", "-C", "test-user-rsa");
+        userKeyRsaPair = generateRsaKeyPair(2048);
+        writeKeyPair(userKeyRsaPair, userKeyRsaPath, userPubKeyRsaPath, "test-user-rsa", null);
         LOGGER.debug("Generated RSA user key pair");
 
-        runSshKeygen("-s", userCaRsaKeyPath.toString(),
-                "-I", "test-user-rsa",
-                "-n", "admin",
-                "-V", "-1m:+365d",
-                userPubKeyRsaPath.toString());
+        OpenSshCertificate userCertRsa = OpenSshCertificateBuilder.userCertificate()
+                .serial(random.nextLong() & Long.MAX_VALUE)
+                .publicKey(userKeyRsaPair.getPublic())
+                .id("test-user-rsa")
+                .principals(Collections.singletonList("admin"))
+                .validAfter(Instant.now().minus(Duration.ofMinutes(1)))
+                .validBefore(Instant.now().plus(Duration.ofDays(365)))
+                .sign(userCaRsaKeyPair, "rsa-sha2-512");
+        writeCertificate(userCertRsa, userCertRsaPath, "test-user-rsa");
         LOGGER.debug("Signed RSA user certificate with RSA CA");
 
-        runSshKeygen("-t", "ed25519", "-f", hostCaKeyPath.toString(), "-N", "", "-C", "host-ca");
+        hostCaKeyPair = generateEd25519KeyPair();
+        writeKeyPair(hostCaKeyPair, hostCaKeyPath, hostCaPubKeyPath, "host-ca", null);
         LOGGER.debug("Generated host CA key pair");
 
-        runSshKeygen("-t", "ed25519", "-f", hostKeyPath.toString(), "-N", "", "-C", "sftp-server");
+        hostKeyPair = generateEd25519KeyPair();
+        writeKeyPair(hostKeyPair, hostKeyPath, hostPubKeyPath, "sftp-server", null);
         LOGGER.debug("Generated host key pair");
 
-        runSshKeygen("-s", hostCaKeyPath.toString(),
-                "-I", "sftp-server",
-                "-h",
-                "-n", "localhost",
-                "-V", "-1m:+365d",
-                hostPubKeyPath.toString());
+        OpenSshCertificate hostCert = OpenSshCertificateBuilder.hostCertificate()
+                .serial(random.nextLong() & Long.MAX_VALUE)
+                .publicKey(hostKeyPair.getPublic())
+                .id("sftp-server")
+                .principals(Collections.singletonList("localhost"))
+                .validAfter(Instant.now().minus(Duration.ofMinutes(1)))
+                .validBefore(Instant.now().plus(Duration.ofDays(365)))
+                .sign(hostCaKeyPair);
+        writeCertificate(hostCert, hostCertPath, "sftp-server");
         LOGGER.debug("Signed host certificate");
 
-        // These correspond to the ftp.key and ftp-encrypted.key files used by tests
-        runSshKeygen("-t", "rsa", "-b", "2048", "-f", ftpKeyPath.toString(), "-N", "", "-C", "ftp-test");
+        ftpKeyPair = generateRsaKeyPair(2048);
+        writeKeyPair(ftpKeyPair, ftpKeyPath, ftpPubKeyPath, "ftp-test", null);
         LOGGER.debug("Generated ftp SSH key pair");
 
-        runSshKeygen("-t", "rsa", "-b", "2048", "-f", ftpEncryptedKeyPath.toString(), "-N", "password", "-C",
-                "ftp-encrypted-test");
+        ftpEncryptedKeyPair = generateRsaKeyPair(2048);
+        writeKeyPair(ftpEncryptedKeyPair, ftpEncryptedKeyPath, ftpEncryptedPubKeyPath, "ftp-encrypted-test", "password");
         LOGGER.debug("Generated ftp-encrypted SSH key pair");
     }
 
-    private void runSshKeygen(String... args) throws IOException, InterruptedException {
-        String[] cmd = new String[args.length + 1];
-        cmd[0] = "ssh-keygen";
-        System.arraycopy(args, 0, cmd, 1, args.length);
+    /**
+     * Generate an Ed25519 key pair using BouncyCastle provider.
+     */
+    private KeyPair generateEd25519KeyPair() throws GeneralSecurityException {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("Ed25519", "BC");
+        return generator.generateKeyPair();
+    }
 
-        ProcessBuilder pb = new ProcessBuilder(cmd);
-        pb.redirectErrorStream(true);
-        Process process = pb.start();
+    /**
+     * Generate an RSA key pair with the specified key size.
+     */
+    private KeyPair generateRsaKeyPair(int keySize) throws GeneralSecurityException {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+        generator.initialize(keySize);
+        return generator.generateKeyPair();
+    }
 
-        // Capture output for debugging
-        StringBuilder output = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                output.append(line).append("\n");
-            }
+    /**
+     * Generate an ECDSA key pair with the specified curve.
+     */
+    private KeyPair generateEcdsaKeyPair(String curve) throws GeneralSecurityException {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("EC");
+        generator.initialize(new ECGenParameterSpec(curve));
+        return generator.generateKeyPair();
+    }
+
+    /**
+     * Write a key pair to files in OpenSSH format.
+     *
+     * @param keyPair        the key pair to write
+     * @param privateKeyPath path for the private key file
+     * @param publicKeyPath  path for the public key file
+     * @param comment        comment to add to the keys
+     * @param password       password for encrypting the private key (null for no encryption)
+     */
+    private void writeKeyPair(KeyPair keyPair, Path privateKeyPath, Path publicKeyPath, String comment, String password)
+            throws IOException, GeneralSecurityException {
+        OpenSSHKeyPairResourceWriter writer = OpenSSHKeyPairResourceWriter.INSTANCE;
+
+        // Prepare encryption context if password is provided
+        OpenSSHKeyEncryptionContext encryptionContext = null;
+        if (password != null && !password.isEmpty()) {
+            encryptionContext = new OpenSSHKeyEncryptionContext();
+            encryptionContext.setPassword(password);
+            encryptionContext.setCipherName("AES");
+            encryptionContext.setCipherMode("CTR");
+            encryptionContext.setCipherType("256");
         }
 
-        boolean finished = process.waitFor(10, TimeUnit.SECONDS);
-        if (!finished) {
-            process.destroyForcibly();
-            throw new IOException("ssh-keygen command timed out");
+        // Write private key
+        try (OutputStream out = Files.newOutputStream(privateKeyPath)) {
+            writer.writePrivateKey(keyPair, comment, encryptionContext, out);
         }
 
-        int exitCode = process.exitValue();
-        if (exitCode != 0) {
-            throw new IOException("ssh-keygen failed with exit code " + exitCode + ": " + output);
-        }
+        // Write public key in standard OpenSSH format
+        String publicKeyLine = org.apache.sshd.common.config.keys.PublicKeyEntry.toString(keyPair.getPublic()) + " " + comment
+                + "\n";
+        Files.writeString(publicKeyPath, publicKeyLine);
+    }
 
-        LOGGER.debug("ssh-keygen output: " + output);
+    /**
+     * Write a certificate to file in OpenSSH format.
+     *
+     * @param certificate the certificate to write
+     * @param certPath    path for the certificate file
+     * @param comment     comment to add to the certificate
+     */
+    private void writeCertificate(OpenSshCertificate certificate, Path certPath, String comment)
+            throws Exception {
+        OpenSSHKeyPairResourceWriter writer = OpenSSHKeyPairResourceWriter.INSTANCE;
+        try (OutputStream out = Files.newOutputStream(certPath)) {
+            writer.writePublicKey(certificate, comment, out);
+        }
     }
 
     public Path getUserCaPubKeyPath() {

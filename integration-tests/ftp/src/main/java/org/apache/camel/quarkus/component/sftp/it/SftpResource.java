@@ -63,7 +63,7 @@ public class SftpResource {
     @Produces(MediaType.TEXT_PLAIN)
     public String getFile(@PathParam("fileName") String fileName) {
         return consumerTemplate.receiveBody(
-                "sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin&localWorkDirectory=target&fileName="
+                "sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin&useUserKnownHostsFile=false&localWorkDirectory=target&fileName="
                         + fileName,
                 TIMEOUT_MS,
                 String.class);
@@ -74,7 +74,9 @@ public class SftpResource {
     @Consumes(MediaType.TEXT_PLAIN)
     public Response createFile(@PathParam("fileName") String fileName, String fileContent)
             throws Exception {
-        producerTemplate.sendBodyAndHeader("sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin", fileContent,
+        producerTemplate.sendBodyAndHeader(
+                "sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin&useUserKnownHostsFile=false",
+                fileContent,
                 Exchange.FILE_NAME, fileName);
         return Response
                 .created(new URI("https://camel.apache.org/"))
@@ -85,7 +87,8 @@ public class SftpResource {
     @DELETE
     public void deleteFile(@PathParam("fileName") String fileName) {
         consumerTemplate.receiveBody(
-                "sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin&delete=true&fileName=" + fileName,
+                "sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin&useUserKnownHostsFile=false&delete=true&fileName="
+                        + fileName,
                 TIMEOUT_MS,
                 String.class);
     }
@@ -94,7 +97,7 @@ public class SftpResource {
     @PUT
     public void moveToDoneFile(@PathParam("fileName") String fileName) {
         consumerTemplate.receiveBody(
-                "sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin&move=${headers.CamelFileName}.done&fileName="
+                "sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?password=admin&useUserKnownHostsFile=false&move=${headers.CamelFileName}.done&fileName="
                         + fileName,
                 TIMEOUT_MS,
                 String.class);
@@ -106,7 +109,7 @@ public class SftpResource {
     public Response createFileWithCertificate(@PathParam("fileName") String fileName, String fileContent)
             throws Exception {
         producerTemplate.sendBodyAndHeader(
-                "sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?privateKeyUri=file:target/classes/certs/test-key-rsa.key&certUri=file:target/classes/certs/test-key-rsa-cert.pub",
+                "sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?privateKeyUri=file:target/classes/certs/test-key-rsa.key&certUri=file:target/classes/certs/test-key-rsa-cert.pub&useUserKnownHostsFile=false",
                 fileContent,
                 Exchange.FILE_NAME, fileName);
         return Response
@@ -119,7 +122,7 @@ public class SftpResource {
     @Produces(MediaType.TEXT_PLAIN)
     public String getFileWithCertificate(@PathParam("fileName") String fileName) {
         return consumerTemplate.receiveBody(
-                "sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?privateKeyUri=file:target/classes/certs/test-key-rsa.key&certUri=file:target/classes/certs/test-key-rsa-cert.pub&localWorkDirectory=target&fileName="
+                "sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?privateKeyUri=file:target/classes/certs/test-key-rsa.key&certUri=file:target/classes/certs/test-key-rsa-cert.pub&useUserKnownHostsFile=false&localWorkDirectory=target&fileName="
                         + fileName,
                 TIMEOUT_MS,
                 String.class);
@@ -131,7 +134,7 @@ public class SftpResource {
     public Response createFileWithCertificateFile(@PathParam("fileName") String fileName, String fileContent)
             throws Exception {
         producerTemplate.sendBodyAndHeader(
-                "sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?privateKeyFile=target/classes/certs/test-key-rsa.key&certFile=target/classes/certs/test-key-rsa-cert.pub",
+                "sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?privateKeyFile=target/classes/certs/test-key-rsa.key&certFile=target/classes/certs/test-key-rsa-cert.pub&useUserKnownHostsFile=false",
                 fileContent,
                 Exchange.FILE_NAME, fileName);
         return Response
@@ -144,7 +147,7 @@ public class SftpResource {
     @Produces(MediaType.TEXT_PLAIN)
     public String getFileWithCertificateFile(@PathParam("fileName") String fileName) {
         return consumerTemplate.receiveBody(
-                "sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?privateKeyFile=target/classes/certs/test-key-rsa.key&certFile=target/classes/certs/test-key-rsa-cert.pub&localWorkDirectory=target&fileName="
+                "sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?privateKeyFile=target/classes/certs/test-key-rsa.key&certFile=target/classes/certs/test-key-rsa-cert.pub&useUserKnownHostsFile=false&localWorkDirectory=target&fileName="
                         + fileName,
                 TIMEOUT_MS,
                 String.class);
@@ -190,7 +193,7 @@ public class SftpResource {
     public Response createFileWithCertificateAndCaAlgorithms(@PathParam("fileName") String fileName, String fileContent)
             throws Exception {
         producerTemplate.sendBodyAndHeader(
-                "sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?privateKeyUri=file:target/classes/certs/test-key-rsa.key&certUri=file:target/classes/certs/test-key-rsa-cert.pub&caSignatureAlgorithms=rsa-sha2-512,rsa-sha2-256,ssh-rsa",
+                "sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?privateKeyUri=file:target/classes/certs/test-key-rsa.key&certUri=file:target/classes/certs/test-key-rsa-cert.pub&useUserKnownHostsFile=false&caSignatureAlgorithms=rsa-sha2-512,rsa-sha2-256,ssh-rsa",
                 fileContent,
                 Exchange.FILE_NAME, fileName);
         return Response
@@ -203,7 +206,7 @@ public class SftpResource {
     @Produces(MediaType.TEXT_PLAIN)
     public String getFileWithCertificateAndCaAlgorithms(@PathParam("fileName") String fileName) {
         return consumerTemplate.receiveBody(
-                "sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?privateKeyUri=file:target/classes/certs/test-key-rsa.key&certUri=file:target/classes/certs/test-key-rsa-cert.pub&caSignatureAlgorithms=rsa-sha2-512,rsa-sha2-256,ssh-rsa&localWorkDirectory=target&fileName="
+                "sftp://admin@localhost:{{camel.sftp.test-port}}/sftp?privateKeyUri=file:target/classes/certs/test-key-rsa.key&certUri=file:target/classes/certs/test-key-rsa-cert.pub&useUserKnownHostsFile=false&caSignatureAlgorithms=rsa-sha2-512,rsa-sha2-256,ssh-rsa&localWorkDirectory=target&fileName="
                         + fileName,
                 TIMEOUT_MS,
                 String.class);
@@ -214,12 +217,16 @@ public class SftpResource {
     @Consumes(MediaType.TEXT_PLAIN)
     public Response createFileWithHostCertVerification(@PathParam("fileName") String fileName, String fileContent)
             throws Exception {
-        String knownHostsFile = createHostCaKnownHostsFile();
+        byte[] knownHostsContent = getHostCaKnownHostsContent();
         String port = context.resolvePropertyPlaceholders("{{camel.sftp.hostcert.test-port}}");
         String uri = "sftp://admin@localhost:" + port
-                + "/sftp?password=admin&strictHostKeyChecking=yes&useUserKnownHostsFile=false&caSignatureAlgorithms=ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ssh-rsa&knownHostsFile="
-                + knownHostsFile;
-        producerTemplate.sendBodyAndHeader(uri, fileContent, Exchange.FILE_NAME, fileName);
+                + "/sftp?password=admin&strictHostKeyChecking=no&useUserKnownHostsFile=false&caSignatureAlgorithms=ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ssh-rsa";
+
+        SftpEndpoint endpoint = context.getEndpoint(uri, SftpEndpoint.class);
+        SftpConfiguration config = endpoint.getConfiguration();
+        config.setKnownHosts(knownHostsContent);
+
+        producerTemplate.sendBodyAndHeader(endpoint, fileContent, Exchange.FILE_NAME, fileName);
         return Response
                 .created(new URI("https://camel.apache.org/"))
                 .build();
@@ -229,23 +236,33 @@ public class SftpResource {
     @GET
     @Produces(MediaType.TEXT_PLAIN)
     public String getFileWithHostCertVerification(@PathParam("fileName") String fileName) throws Exception {
-        String knownHostsFile = createHostCaKnownHostsFile();
-        return consumerTemplate.receiveBody(
-                "sftp://admin@localhost:{{camel.sftp.hostcert.test-port}}/sftp?password=admin&strictHostKeyChecking=yes&useUserKnownHostsFile=false&caSignatureAlgorithms=ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ssh-rsa&knownHostsFile="
-                        + knownHostsFile + "&localWorkDirectory=target&fileName=" + fileName,
-                TIMEOUT_MS,
-                String.class);
+        byte[] knownHostsContent = getHostCaKnownHostsContent();
+        String port = context.resolvePropertyPlaceholders("{{camel.sftp.hostcert.test-port}}");
+        String uri = "sftp://admin@localhost:" + port
+                + "/sftp?password=admin&strictHostKeyChecking=no&useUserKnownHostsFile=false&caSignatureAlgorithms=ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ssh-rsa&localWorkDirectory=target&fileName="
+                + fileName;
+
+        SftpEndpoint endpoint = context.getEndpoint(uri, SftpEndpoint.class);
+        SftpConfiguration config = endpoint.getConfiguration();
+        config.setKnownHosts(knownHostsContent);
+
+        return consumerTemplate.receiveBody(endpoint, TIMEOUT_MS, String.class);
     }
 
     @Path("/hostcert/delete/{fileName}")
     @DELETE
     public Response deleteFileWithHostCert(@PathParam("fileName") String fileName) throws Exception {
-        String knownHostsFile = createHostCaKnownHostsFile();
-        consumerTemplate.receiveBody(
-                "sftp://admin@localhost:{{camel.sftp.hostcert.test-port}}/sftp?password=admin&strictHostKeyChecking=yes&useUserKnownHostsFile=false&caSignatureAlgorithms=ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ssh-rsa&knownHostsFile="
-                        + knownHostsFile + "&delete=true&fileName=" + fileName,
-                TIMEOUT_MS,
-                String.class);
+        byte[] knownHostsContent = getHostCaKnownHostsContent();
+        String port = context.resolvePropertyPlaceholders("{{camel.sftp.hostcert.test-port}}");
+        String uri = "sftp://admin@localhost:" + port
+                + "/sftp?password=admin&strictHostKeyChecking=no&useUserKnownHostsFile=false&caSignatureAlgorithms=ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ssh-rsa&delete=true&fileName="
+                + fileName;
+
+        SftpEndpoint endpoint = context.getEndpoint(uri, SftpEndpoint.class);
+        SftpConfiguration config = endpoint.getConfiguration();
+        config.setKnownHosts(knownHostsContent);
+
+        consumerTemplate.receiveBody(endpoint, TIMEOUT_MS, String.class);
         return Response.noContent().build();
     }
 
@@ -254,12 +271,16 @@ public class SftpResource {
     @Consumes(MediaType.TEXT_PLAIN)
     public Response createFileWithHostCertAndAlgorithms(@PathParam("fileName") String fileName, String fileContent)
             throws Exception {
-        String knownHostsFile = createHostCaKnownHostsFile();
-        producerTemplate.sendBodyAndHeader(
-                "sftp://admin@localhost:{{camel.sftp.hostcert.test-port}}/sftp?password=admin&strictHostKeyChecking=yes&useUserKnownHostsFile=false&knownHostsFile="
-                        + knownHostsFile + "&caSignatureAlgorithms=ssh-ed25519,rsa-sha2-512,rsa-sha2-256",
-                fileContent,
-                Exchange.FILE_NAME, fileName);
+        byte[] knownHostsContent = getHostCaKnownHostsContent();
+        String port = context.resolvePropertyPlaceholders("{{camel.sftp.hostcert.test-port}}");
+        String uri = "sftp://admin@localhost:" + port
+                + "/sftp?password=admin&strictHostKeyChecking=no&useUserKnownHostsFile=false&caSignatureAlgorithms=ssh-ed25519,rsa-sha2-512,rsa-sha2-256";
+
+        SftpEndpoint endpoint = context.getEndpoint(uri, SftpEndpoint.class);
+        SftpConfiguration config = endpoint.getConfiguration();
+        config.setKnownHosts(knownHostsContent);
+
+        producerTemplate.sendBodyAndHeader(endpoint, fileContent, Exchange.FILE_NAME, fileName);
         return Response
                 .created(new URI("https://camel.apache.org/"))
                 .build();
@@ -269,47 +290,51 @@ public class SftpResource {
     @GET
     @Produces(MediaType.TEXT_PLAIN)
     public String getFileWithHostCertAndAlgorithms(@PathParam("fileName") String fileName) throws Exception {
-        String knownHostsFile = createHostCaKnownHostsFile();
-        return consumerTemplate.receiveBody(
-                "sftp://admin@localhost:{{camel.sftp.hostcert.test-port}}/sftp?password=admin&strictHostKeyChecking=yes&useUserKnownHostsFile=false&knownHostsFile="
-                        + knownHostsFile
-                        + "&caSignatureAlgorithms=ssh-ed25519,rsa-sha2-512,rsa-sha2-256&localWorkDirectory=target&fileName="
-                        + fileName,
-                TIMEOUT_MS,
-                String.class);
+        byte[] knownHostsContent = getHostCaKnownHostsContent();
+        String port = context.resolvePropertyPlaceholders("{{camel.sftp.hostcert.test-port}}");
+        String uri = "sftp://admin@localhost:" + port
+                + "/sftp?password=admin&strictHostKeyChecking=no&useUserKnownHostsFile=false&caSignatureAlgorithms=ssh-ed25519,rsa-sha2-512,rsa-sha2-256&localWorkDirectory=target&fileName="
+                + fileName;
+
+        SftpEndpoint endpoint = context.getEndpoint(uri, SftpEndpoint.class);
+        SftpConfiguration config = endpoint.getConfiguration();
+        config.setKnownHosts(knownHostsContent);
+
+        return consumerTemplate.receiveBody(endpoint, TIMEOUT_MS, String.class);
     }
 
     @Path("/hostcertWithAlgorithms/delete/{fileName}")
     @DELETE
     public Response deleteFileWithHostCertAndAlgorithms(@PathParam("fileName") String fileName) throws Exception {
-        String knownHostsFile = createHostCaKnownHostsFile();
-        consumerTemplate.receiveBody(
-                "sftp://admin@localhost:{{camel.sftp.hostcert.test-port}}/sftp?password=admin&strictHostKeyChecking=yes&useUserKnownHostsFile=false&knownHostsFile="
-                        + knownHostsFile
-                        + "&caSignatureAlgorithms=ssh-ed25519,rsa-sha2-512,rsa-sha2-256&delete=true&fileName="
-                        + fileName,
-                TIMEOUT_MS,
-                String.class);
+        byte[] knownHostsContent = getHostCaKnownHostsContent();
+        String port = context.resolvePropertyPlaceholders("{{camel.sftp.hostcert.test-port}}");
+        String uri = "sftp://admin@localhost:" + port
+                + "/sftp?password=admin&strictHostKeyChecking=no&useUserKnownHostsFile=false&caSignatureAlgorithms=ssh-ed25519,rsa-sha2-512,rsa-sha2-256&delete=true&fileName="
+                + fileName;
+
+        SftpEndpoint endpoint = context.getEndpoint(uri, SftpEndpoint.class);
+        SftpConfiguration config = endpoint.getConfiguration();
+        config.setKnownHosts(knownHostsContent);
+
+        consumerTemplate.receiveBody(endpoint, TIMEOUT_MS, String.class);
         return Response.noContent().build();
     }
 
     /**
-     * Creates a known_hosts file with @cert-authority entry for the host CA.
+     * Creates known_hosts content with @cert-authority entry for the host CA.
      * This allows the client to verify the server's host certificate.
+     * Returns the content as a byte array to avoid JSch's global host key cache
+     * that persists across JSch instances when using file-based known_hosts.
      */
-    private String createHostCaKnownHostsFile() throws Exception {
+    private byte[] getHostCaKnownHostsContent() throws Exception {
         String hostCaPubKey = org.apache.camel.quarkus.test.support.sftp.SftpHostCertTestResource.getHostCaPublicKey();
         String port = context.resolvePropertyPlaceholders("{{camel.sftp.hostcert.test-port}}");
 
         String knownHostsContent = String.format("@cert-authority [localhost]:%s %s%n", port, hostCaPubKey);
 
-        java.nio.file.Path knownHostsPath = createTempFile(
-                "known_hosts_" + System.currentTimeMillis() + "_", ".txt");
-        writeString(knownHostsPath, knownHostsContent);
+        getLogger(SftpResource.class.getName()).fine(
+                "Created known_hosts content:\n" + knownHostsContent);
 
-        getLogger(SftpResource.class.getName()).info(
-                "Created known_hosts file: " + knownHostsPath + " with content:\n" + knownHostsContent);
-
-        return knownHostsPath.toAbsolutePath().toString();
+        return knownHostsContent.getBytes(java.nio.charset.StandardCharsets.UTF_8);
     }
 }
