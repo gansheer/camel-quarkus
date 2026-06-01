@@ -16,11 +16,12 @@
  */
 package org.apache.camel.quarkus.component.nats.it;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 
 import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
-import org.apache.camel.quarkus.test.support.certificate.CertificatesUtil;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,13 +56,20 @@ public class NatsTestResource implements QuarkusTestResourceLifecycleManager {
         noAuthContainer = noAuthContainer(properties);
         tokenAuthContainer = tokenAuthContainer(properties);
 
-        // TODO: Restore TLS tests - https://github.com/apache/camel-quarkus/issues/7771
-        //        if ("true".equals(System.getenv("ENABLE_TLS_TESTS"))) {
-        //            LOG.info("TLS tests enabled so starting the TLS auth container");
-        //            tlsAuthContainer = tlsAuthContainer(properties);
-        //        } else {
-        //            LOG.info("TLS tests NOT enabled, so NOT starting the TLS auth container");
-        //        }
+        if ("true".equals(System.getenv("ENABLE_TLS_TESTS"))) {
+            LOG.info("TLS tests enabled so starting the TLS auth container");
+            try {
+                // Generate TLS certificates using custom BouncyCastle code
+                Path certsDir = Paths.get("target/certs");
+                NatsCertificateGenerator.generate(certsDir);
+                LOG.info("Generated TLS certificates in {}", certsDir);
+                tlsAuthContainer = tlsAuthContainer(properties);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to generate TLS certificates", e);
+            }
+        } else {
+            LOG.info("TLS tests NOT enabled, so NOT starting the TLS auth container");
+        }
 
         LOG.info("Properties: {}", properties);
 
@@ -134,9 +142,9 @@ public class NatsTestResource implements QuarkusTestResourceLifecycleManager {
         GenericContainer<?> container = new GenericContainer<>(NATS_IMAGE)
                 .withExposedPorts(NATS_SERVER_PORT)
                 .withNetworkAliases("tlsAuthContainer")
-                .withCopyToContainer(MountableFile.forHostPath(CertificatesUtil.caCrt("nats")), "/certs/nats-ca.crt")
-                .withCopyToContainer(MountableFile.forHostPath(CertificatesUtil.key("nats")), "/certs/nats.key")
-                .withCopyToContainer(MountableFile.forHostPath(CertificatesUtil.crt("nats")), "/certs/nats.crt")
+                .withCopyToContainer(MountableFile.forHostPath("target/certs/nats-ca.crt"), "/certs/nats-ca.crt")
+                .withCopyToContainer(MountableFile.forHostPath("target/certs/nats.key"), "/certs/nats.key")
+                .withCopyToContainer(MountableFile.forHostPath("target/certs/nats.crt"), "/certs/nats.crt")
                 .withClasspathResourceMapping("conf/tls.conf", "/conf/tls.conf", BindMode.READ_ONLY, SelinuxContext.SHARED)
                 .withCommand(
                         "--config", "/conf/tls.conf",
