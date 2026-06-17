@@ -55,13 +55,12 @@ public class NatsTestResource implements QuarkusTestResourceLifecycleManager {
         noAuthContainer = noAuthContainer(properties);
         tokenAuthContainer = tokenAuthContainer(properties);
 
-        // TODO: Restore TLS tests - https://github.com/apache/camel-quarkus/issues/7771
-        //        if ("true".equals(System.getenv("ENABLE_TLS_TESTS"))) {
-        //            LOG.info("TLS tests enabled so starting the TLS auth container");
-        //            tlsAuthContainer = tlsAuthContainer(properties);
-        //        } else {
-        //            LOG.info("TLS tests NOT enabled, so NOT starting the TLS auth container");
-        //        }
+        if ("true".equals(System.getenv("ENABLE_TLS_TESTS"))) {
+            LOG.info("TLS tests enabled so starting the TLS auth container");
+            tlsAuthContainer = tlsAuthContainer(properties);
+        } else {
+            LOG.info("TLS tests NOT enabled, so NOT starting the TLS auth container");
+        }
 
         LOG.info("Properties: {}", properties);
 
