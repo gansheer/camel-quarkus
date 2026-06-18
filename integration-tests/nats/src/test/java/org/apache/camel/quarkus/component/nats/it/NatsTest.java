@@ -16,8 +16,10 @@
  */
 package org.apache.camel.quarkus.component.nats.it;
 
+import java.security.SecureRandom;
 import java.util.concurrent.TimeUnit;
 
+import io.nats.client.NKey;
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.Header;
@@ -30,6 +32,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import static io.restassured.RestAssured.given;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @TestCertificates(certificates = {
         @Certificate(name = "nats", formats = {
@@ -123,6 +126,14 @@ class NatsTest {
             return given().get("/nats/messages/3-qmsg-max").path("size()").equals(3)
                     && given().get("/nats/messages/8-qmsg-max").path("size()").equals(8);
         });
+    }
+
+    @Test
+    void nkeyEd25519SignAndVerifyShouldSucceed() throws Exception {
+        NKey user = NKey.createUser(new SecureRandom());
+        byte[] data = "test-payload".getBytes();
+        byte[] signature = user.sign(data);
+        assertTrue(user.verify(data, signature));
     }
 
     @Test
