@@ -63,6 +63,11 @@ public class CamelCoreDevConsoleProcessor {
                 .componentLink("qwc-camel-core-rest.js"));
 
         cardPageBuildItem.addPage(Page.webComponentPageBuilder()
+                .title("Route Diagram")
+                .icon("font-awesome-solid:diagram-project")
+                .componentLink("qwc-camel-core-diagram.js"));
+
+        cardPageBuildItem.addPage(Page.webComponentPageBuilder()
                 .title("Routes")
                 .icon("font-awesome-solid:route")
                 .componentLink("qwc-camel-core-routes.js"));
