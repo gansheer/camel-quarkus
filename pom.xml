@@ -183,6 +183,7 @@
         <snakeyaml-engine.version>${snakeyaml-engine-version}</snakeyaml-engine.version><!-- Resolve conflict between camel-snakeyaml & kubernetes-client -->
         <spring.version>${spring-version}</spring.version>
         <spring.data.redis.version>${spring-data-redis-version}</spring.data.redis.version>
+        <sshd.version>2.19.0.redhat-00001</sshd.version><!-- @sync io.quarkus:quarkus-bom:${quarkus.version} dep:org.apache.sshd:sshd-common -->
         <stumbleupon-async.version>1.4.1</stumbleupon-async.version><!-- Transitive of kudu-client -->
         <swagger.version>${swagger-openapi3-version}</swagger.version>
         <swagger-codegen.version>3.0.78</swagger-codegen.version><!-- @sync io.swagger.codegen.v3:swagger-codegen-generators:${swagger-codegen-generators.version} prop:swagger-codegen-version -->
@@ -206,7 +207,6 @@
         <microsoft.graph.version>6.62.0</microsoft.graph.version>
         <microsoft.graph.auth.version>0.3.0</microsoft.graph.auth.version>
         <pdfbox.version>${pdfbox-version}</pdfbox.version>
-        <sshd.version>2.20.0</sshd.version><!-- Pin version for now, should be sync to quarkus.version again when it is 2.20 as well -->
         <unboundid-ldapsdk.version>7.0.4</unboundid-ldapsdk.version>
         <wiremock.version>3.13.2</wiremock.version>
         <xmlunit.version>2.11.0</xmlunit.version>
