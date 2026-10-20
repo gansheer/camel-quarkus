@@ -1719,6 +1719,10 @@
                         <groupId>org.springframework</groupId>
                         <artifactId>spring-core</artifactId>
                     </exclusion>
+                    <exclusion>
+                        <groupId>org.springframework</groupId>
+                        <artifactId>spring-web</artifactId>
+                    </exclusion>
                 </exclusions>
             </dependency>
             <dependency>
@@ -6760,6 +6764,11 @@
             </dependency>
             <dependency>
                 <groupId>org.apache.camel.quarkus</groupId>
+                <artifactId>camel-quarkus-support-spring-web</artifactId>
+                <version>${camel-quarkus.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.camel.quarkus</groupId>
                 <artifactId>camel-quarkus-support-spring-deployment</artifactId>
                 <version>${camel-quarkus.version}</version>
             </dependency>
@@ -8466,25 +8475,6 @@
                     <exclusion>
                         <groupId>org.springframework</groupId>
                         <artifactId>spring-beans</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.springframework</groupId>
-                        <artifactId>spring-core</artifactId>
-                    </exclusion>
-                </exclusions>
-            </dependency>
-            <dependency>
-                <groupId>org.springframework</groupId>
-                <artifactId>spring-web</artifactId>
-                <version>${spring.version}</version>
-                <exclusions>
-                    <exclusion>
-                        <groupId>org.springframework</groupId>
-                        <artifactId>spring-beans</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.springframework</groupId>
-                        <artifactId>spring-context</artifactId>
                     </exclusion>
                     <exclusion>
                         <groupId>org.springframework</groupId>
