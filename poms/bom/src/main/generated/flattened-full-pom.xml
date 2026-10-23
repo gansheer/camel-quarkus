@@ -7815,6 +7815,11 @@
         <version>2.4.2</version>
       </dependency>
       <dependency>
+        <groupId>io.quarkiverse.vault</groupId>
+        <artifactId>quarkus-vault-client</artifactId>
+        <version>5.0.0.Beta1</version>
+      </dependency>
+      <dependency>
         <groupId>io.swagger.codegen.v3</groupId>
         <artifactId>swagger-codegen</artifactId>
         <version>3.0.80</version>

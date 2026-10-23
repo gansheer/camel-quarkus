@@ -37,6 +37,9 @@ import static org.hamcrest.Matchers.is;
 @QuarkusTestResource(HashicorpVaultTestResource.class)
 class HashicorpVaultTest {
     public static final String SECRET_VALUE = "2s3cr3t";
+    public static final String POC_SECRET_PATH = "camel-quarkus-secret-poc";
+    public static final String POC_POJO_SECRET_PATH = "camel-quarkus-secret-poc-pojo";
+    public static final String POC_VERSIONED_SECRET_PATH = "camel-quarkus-secret-poc-versioned";
 
     @Test
     void secretCRUD() {
@@ -165,5 +168,107 @@ class HashicorpVaultTest {
                 .then()
                 .statusCode(200)
                 .body(is(newSecretVersion));
+    }
+
+    /**
+     * POC for https://github.com/apache/camel-quarkus/issues/3345: the same CRUD coverage as {@link #secretCRUD()},
+     * but served by the quarkiverse Vault client rather than spring-vault's VaultTemplate.
+     */
+    @Test
+    void springlessSecretCRUD() {
+        RestAssured.given()
+                .queryParam("secretPath", POC_SECRET_PATH)
+                .queryParam("key", TEST_SECRET_NAME)
+                .queryParam("value", SECRET_VALUE)
+                .post("/quarkus-vault/secret")
+                .then()
+                .statusCode(201);
+
+        RestAssured.given()
+                .queryParam("secretPath", POC_SECRET_PATH)
+                .get("/quarkus-vault/secret")
+                .then()
+                .statusCode(200)
+                .body(TEST_SECRET_NAME, is(SECRET_VALUE));
+
+        RestAssured.given()
+                .get("/quarkus-vault/secret/list/all")
+                .then()
+                .statusCode(200)
+                .body(containsString(POC_SECRET_PATH));
+
+        RestAssured.given()
+                .queryParam("secretPath", POC_SECRET_PATH)
+                .delete("/quarkus-vault/secret")
+                .then()
+                .statusCode(204);
+
+        RestAssured.given()
+                .queryParam("secretPath", POC_SECRET_PATH)
+                .get("/quarkus-vault/secret")
+                .then()
+                .statusCode(404);
+    }
+
+    @Test
+    void springlessSecretPojo() {
+        String secretA = "Test Secret A";
+        String secretB = "Test Secret B";
+        String secretC = "Test Secret C";
+
+        RestAssured.given()
+                .queryParam("secretPath", POC_POJO_SECRET_PATH)
+                .queryParam("secretA", secretA)
+                .queryParam("secretB", secretB)
+                .queryParam("secretC", secretC)
+                .post("/quarkus-vault/secret/pojo")
+                .then()
+                .statusCode(201);
+
+        RestAssured.given()
+                .queryParam("secretPath", POC_POJO_SECRET_PATH)
+                .get("/quarkus-vault/secret")
+                .then()
+                .statusCode(200)
+                .body(
+                        "secretA", is(secretA),
+                        "secretB", is(secretB),
+                        "secretC", is(secretC));
+    }
+
+    @Test
+    void springlessVersionedSecret() {
+        RestAssured.given()
+                .queryParam("secretPath", POC_VERSIONED_SECRET_PATH)
+                .queryParam("key", TEST_SECRET_NAME)
+                .queryParam("value", SECRET_VALUE)
+                .post("/quarkus-vault/secret")
+                .then()
+                .statusCode(201);
+
+        String newSecretVersion = SECRET_VALUE + " version 2";
+        RestAssured.given()
+                .queryParam("secretPath", POC_VERSIONED_SECRET_PATH)
+                .queryParam("key", TEST_SECRET_NAME)
+                .queryParam("value", newSecretVersion)
+                .post("/quarkus-vault/secret")
+                .then()
+                .statusCode(201);
+
+        RestAssured.given()
+                .queryParam("secretPath", POC_VERSIONED_SECRET_PATH)
+                .queryParam("version", "1")
+                .get("/quarkus-vault/secret")
+                .then()
+                .statusCode(200)
+                .body(TEST_SECRET_NAME, is(SECRET_VALUE));
+
+        RestAssured.given()
+                .queryParam("secretPath", POC_VERSIONED_SECRET_PATH)
+                .queryParam("version", "2")
+                .get("/quarkus-vault/secret")
+                .then()
+                .statusCode(200)
+                .body(TEST_SECRET_NAME, is(newSecretVersion));
     }
 }

@@ -39,6 +39,32 @@ class HashicorpVaultProcessor {
         return new IndexDependencyBuildItem("org.springframework.vault", "spring-vault-core");
     }
 
+    // POC for https://github.com/apache/camel-quarkus/issues/3345
+    @BuildStep
+    IndexDependencyBuildItem indexVaultClientDependencies() {
+        return new IndexDependencyBuildItem("io.quarkiverse.vault", "quarkus-vault-client");
+    }
+
+    /**
+     * Jackson needs reflective access to the generated Vault model types, including records such as
+     * VaultErrorResponse. Mirrors what quarkus-vault's own VaultProcessor does.
+     */
+    @BuildStep
+    void registerVaultClientModelsForReflection(CombinedIndexBuildItem combinedIndex,
+            BuildProducer<ReflectiveClassBuildItem> reflectiveClass) {
+        String[] vaultModelClasses = combinedIndex.getIndex()
+                .getAllKnownImplementations(DotName.createSimple("io.quarkus.vault.client.common.VaultModel"))
+                .stream()
+                .map(ClassInfo::name)
+                .map(DotName::toString)
+                .toArray(String[]::new);
+
+        if (vaultModelClasses.length > 0) {
+            reflectiveClass.produce(
+                    ReflectiveClassBuildItem.builder(vaultModelClasses).constructors(true).methods(true).fields(true).build());
+        }
+    }
+
     @BuildStep
     void registerForReflection(CombinedIndexBuildItem combinedIndex, BuildProducer<ReflectiveClassBuildItem> reflectiveClass) {
         String[] vaultResponseClasses = combinedIndex.getIndex()

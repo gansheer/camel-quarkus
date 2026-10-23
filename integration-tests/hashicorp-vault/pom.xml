@@ -47,6 +47,11 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-resteasy-jsonb</artifactId>
         </dependency>
+        <!-- POC: springless Vault access via the quarkiverse generated client (no Quarkus/Vert.x coupling) -->
+        <dependency>
+            <groupId>io.quarkiverse.vault</groupId>
+            <artifactId>quarkus-vault-client</artifactId>
+        </dependency>
 
         <!-- test dependencies -->
         <dependency>

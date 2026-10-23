@@ -7913,6 +7913,11 @@
                 <version>${quarkiverse-mybatis.version}</version>
             </dependency>
             <dependency>
+                <groupId>io.quarkiverse.vault</groupId>
+                <artifactId>quarkus-vault-client</artifactId>
+                <version>${quarkiverse-vault.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>io.swagger.codegen.v3</groupId>
                 <artifactId>swagger-codegen</artifactId>
                 <version>${swagger-codegen.version}</version>
@@ -8618,6 +8623,7 @@
                                 <resolutionEntryPointInclude>io.quarkiverse.cxf:*</resolutionEntryPointInclude>
                                 <resolutionEntryPointInclude>io.quarkiverse.minio:minio-native</resolutionEntryPointInclude>
                                 <resolutionEntryPointInclude>io.quarkiverse.messaginghub:*</resolutionEntryPointInclude>
+                                <resolutionEntryPointInclude>io.quarkiverse.vault:*</resolutionEntryPointInclude>
                                 <resolutionEntryPointInclude>net.openhft:affinity</resolutionEntryPointInclude> <!-- https://github.com/apache/camel-quarkus/issues/3788 -->
                                 <resolutionEntryPointInclude>com.ibm.mq:com.ibm.mq.jakarta.client</resolutionEntryPointInclude>
                                 <resolutionEntryPointInclude>com.ibm.icu:icu4j</resolutionEntryPointInclude>
