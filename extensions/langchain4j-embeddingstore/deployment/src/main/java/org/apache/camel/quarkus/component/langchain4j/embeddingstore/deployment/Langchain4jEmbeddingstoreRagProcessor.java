@@ -23,6 +23,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.rag.RetrievalAugmentor;
@@ -41,6 +42,7 @@ import io.quarkus.deployment.annotations.BuildSteps;
 import io.quarkus.deployment.annotations.Consume;
 import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Record;
+import io.quarkus.deployment.builditem.nativeimage.RuntimeInitializedClassBuildItem;
 import io.quarkus.runtime.configuration.ConfigurationException;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.context.Dependent;
@@ -77,6 +79,19 @@ class Langchain4jEmbeddingstoreRagProcessor {
     @BuildStep
     UnremovableBeanBuildItem retainRagRetrievalFilterSuppliers() {
         return UnremovableBeanBuildItem.beanTypes(RAG_RETRIEVAL_FILTER_SUPPLIER_DOTNAME);
+    }
+
+    // Their static DEFAULT_PROMPT_TEMPLATE goes through the Quarkus LangChain4j (Qute) PromptTemplateFactory,
+    // which cannot run during native build-time class initialization. Quarkus LangChain4j only defers
+    // DefaultContentInjector.
+    @BuildStep
+    void runtimeInitializedRagClasses(BuildProducer<RuntimeInitializedClassBuildItem> runtimeInitialized) {
+        Stream.of(
+                "dev.langchain4j.rag.query.router.LanguageModelQueryRouter",
+                "dev.langchain4j.rag.query.transformer.CompressingQueryTransformer",
+                "dev.langchain4j.rag.query.transformer.ExpandingQueryTransformer")
+                .map(RuntimeInitializedClassBuildItem::new)
+                .forEach(runtimeInitialized::produce);
     }
 
     /**
