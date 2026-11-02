@@ -124,16 +124,11 @@ public final class RuntimeBeanRepository implements BeanRepository {
 
     private static <T> Map<String, T> getReferencesByTypeWithName(Class<T> type, Annotation... qualifiers) {
         Map<String, T> beans = new HashMap<>();
-        Arc.container()
-                .listAll(type, qualifiers)
-                .stream()
-                .filter(InstanceHandle::isAvailable)
-                .forEach(instanceHandle -> {
-                    String name = resolveBeanName(instanceHandle.getBean());
-                    if (ObjectHelper.isNotEmpty(name)) {
-                        beans.put(name, instanceHandle.get());
-                    }
-                });
+        for (InstanceHandle<T> instanceHandle : Arc.container().listAll(type, qualifiers)) {
+            if (instanceHandle.isAvailable()) {
+                beans.put(resolveBeanName(instanceHandle.getBean()), instanceHandle.get());
+            }
+        }
         return beans;
     }
 
@@ -218,6 +213,8 @@ public final class RuntimeBeanRepository implements BeanRepository {
                 }
             }
         }
-        return name;
+        // Unnamed beans must still be exposed by type, as Camel resolves some beans
+        // (e.g. UnitOfWorkFactory) through Registry#findByTypeWithName
+        return ObjectHelper.isNotEmpty(name) ? name : bean.getIdentifier();
     }
 }
