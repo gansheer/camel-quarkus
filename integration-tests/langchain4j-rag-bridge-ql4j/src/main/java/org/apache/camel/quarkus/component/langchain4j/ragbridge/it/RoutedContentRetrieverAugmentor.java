@@ -29,6 +29,7 @@ import dev.langchain4j.rag.DefaultRetrievalAugmentor;
 import dev.langchain4j.rag.RetrievalAugmentor;
 import dev.langchain4j.rag.content.injector.DefaultContentInjector;
 import dev.langchain4j.rag.query.router.LanguageModelQueryRouter;
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.apache.camel.CamelContext;
@@ -46,21 +47,31 @@ public class RoutedContentRetrieverAugmentor implements Supplier<RetrievalAugmen
     @Inject
     CamelContext camelContext;
 
-    @Override
-    public RetrievalAugmentor get() {
-        return DefaultRetrievalAugmentor.builder()
+    private RetrievalAugmentor augmentor;
+
+    @PostConstruct
+    void build() throws Exception {
+        // AI services are request-scoped, so the augmentor and its retrievers are built once
+        CamelContentRetriever orders = new CamelContentRetriever(camelContext, "orders", "direct:retriever-orders");
+        CamelContentRetriever kb = new CamelContentRetriever(camelContext, "kb", "direct:retriever-kb");
+        camelContext.addService(orders);
+        camelContext.addService(kb);
+        augmentor = DefaultRetrievalAugmentor.builder()
                 .queryRouter(LanguageModelQueryRouter.builder()
                         .chatModel(new KbPickingRouterModel())
                         .retrieverToDescription(Map.of(
-                                new CamelContentRetriever(camelContext, "orders", "direct:retriever-orders"),
-                                "The customer's orders of the last 30 days, with status",
-                                new CamelContentRetriever(camelContext, "kb", "direct:retriever-kb"),
-                                "Support articles: delivery delays, returns, refunds"))
+                                orders, "The customer's orders of the last 30 days, with status",
+                                kb, "Support articles: delivery delays, returns, refunds"))
                         .build())
                 .contentInjector(DefaultContentInjector.builder()
                         .metadataKeysToInclude(List.of(METADATA_SOURCE))
                         .build())
                 .build();
+    }
+
+    @Override
+    public RetrievalAugmentor get() {
+        return augmentor;
     }
 
     // answers with the option id ("<id>: <description>") of the support articles source

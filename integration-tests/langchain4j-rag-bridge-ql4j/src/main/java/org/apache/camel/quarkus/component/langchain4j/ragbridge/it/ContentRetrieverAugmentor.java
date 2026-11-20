@@ -23,6 +23,7 @@ import dev.langchain4j.rag.DefaultRetrievalAugmentor;
 import dev.langchain4j.rag.RetrievalAugmentor;
 import dev.langchain4j.rag.content.injector.DefaultContentInjector;
 import dev.langchain4j.rag.query.router.DefaultQueryRouter;
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.apache.camel.CamelContext;
@@ -37,16 +38,26 @@ public class ContentRetrieverAugmentor implements Supplier<RetrievalAugmentor> {
     @Inject
     CamelContext camelContext;
 
-    @Override
-    public RetrievalAugmentor get() {
-        return DefaultRetrievalAugmentor.builder()
-                .queryRouter(new DefaultQueryRouter(
-                        new CamelContentRetriever(camelContext, "orders", "direct:retriever-orders")
-                                .setDocumentIdKey("orderId"),
-                        new CamelContentRetriever(camelContext, "kb", "direct:retriever-kb")))
+    private RetrievalAugmentor augmentor;
+
+    @PostConstruct
+    void build() throws Exception {
+        // AI services are request-scoped, so the augmentor and its retrievers are built once
+        CamelContentRetriever orders = new CamelContentRetriever(camelContext, "orders", "direct:retriever-orders")
+                .setDocumentIdKey("orderId");
+        CamelContentRetriever kb = new CamelContentRetriever(camelContext, "kb", "direct:retriever-kb");
+        camelContext.addService(orders);
+        camelContext.addService(kb);
+        augmentor = DefaultRetrievalAugmentor.builder()
+                .queryRouter(new DefaultQueryRouter(orders, kb))
                 .contentInjector(DefaultContentInjector.builder()
                         .metadataKeysToInclude(List.of(METADATA_SOURCE, METADATA_DOCUMENT_ID))
                         .build())
                 .build();
+    }
+
+    @Override
+    public RetrievalAugmentor get() {
+        return augmentor;
     }
 }
