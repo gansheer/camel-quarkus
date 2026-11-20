@@ -45,6 +45,9 @@ import static org.apache.camel.quarkus.component.langchain4j.embeddingstore.retr
  * A non-collection body is treated as a single element. Blank elements are skipped. Every segment gets
  * {@value CamelContentRetrieverConstants#METADATA_SOURCE} and the response headers prefixed with
  * {@value LangChain4j#METADATA_PREFIX}.
+ * <p>
+ * {@code maxResults} and {@code maxChars} are applied after conversion: the first keeps the first N items, the second
+ * truncates the combined text. Negative values mean unlimited.
  */
 public final class ContentConverter {
 
@@ -52,6 +55,11 @@ public final class ContentConverter {
     }
 
     public static List<Content> toContents(Exchange exchange, String sourceName, String documentIdKey) {
+        return toContents(exchange, sourceName, documentIdKey, -1, -1);
+    }
+
+    public static List<Content> toContents(
+            Exchange exchange, String sourceName, String documentIdKey, int maxResults, int maxChars) {
         Object body = exchange.getMessage().getBody();
         if (body == null) {
             return Collections.emptyList();
@@ -67,6 +75,12 @@ public final class ContentConverter {
             if (content != null) {
                 contents.add(content);
             }
+        }
+        if (maxResults >= 0 && contents.size() > maxResults) {
+            contents = new ArrayList<>(contents.subList(0, maxResults));
+        }
+        if (maxChars >= 0) {
+            contents = truncate(contents, maxChars);
         }
         return contents;
     }
@@ -113,6 +127,27 @@ public final class ContentConverter {
             return null;
         }
         return metadata != null ? TextSegment.from(text, metadata) : TextSegment.from(text);
+    }
+
+    private static List<Content> truncate(List<Content> contents, int maxChars) {
+        List<Content> answer = new ArrayList<>(contents.size());
+        int remaining = maxChars;
+        for (Content content : contents) {
+            if (remaining <= 0) {
+                break;
+            }
+            String text = content.textSegment().text();
+            if (text.length() <= remaining) {
+                answer.add(content);
+                remaining -= text.length();
+            } else {
+                TextSegment segment = content.textSegment();
+                answer.add(Content.from(
+                        TextSegment.from(text.substring(0, remaining), segment.metadata()), content.metadata()));
+                remaining = 0;
+            }
+        }
+        return answer;
     }
 
     static String toText(Map<?, ?> map) {
