@@ -73,4 +73,26 @@ class ContentRetrieverTest {
                         containsString("camel_retrieval_source: kb"),
                         not(containsString("orderId: 1001"))));
     }
+
+    @Test
+    void failingSourcesDoNotCostTheAnswerWithOnErrorEmpty() {
+        RestAssured.given()
+                .body("Is it late?")
+                .post("/content-retriever/failure-chat")
+                .then()
+                .statusCode(200)
+                .body(allOf(
+                        containsString("Is it late?"),
+                        not(containsString("late answer")),
+                        not(containsString("carrier down"))));
+    }
+
+    @Test
+    void failingSourceFailsTheAnswerByDefault() {
+        RestAssured.given()
+                .body("Is it late?")
+                .post("/content-retriever/strict-chat")
+                .then()
+                .statusCode(500);
+    }
 }

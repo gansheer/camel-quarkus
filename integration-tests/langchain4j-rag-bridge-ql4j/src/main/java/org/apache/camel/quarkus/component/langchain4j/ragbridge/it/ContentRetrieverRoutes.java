@@ -42,5 +42,9 @@ public class ContentRetrieverRoutes extends RouteBuilder {
         // Template / pass-through: the prompt text drives the lookup
         from("direct:retriever-kb")
                 .setBody(simple("KB article matching '${body}': delayed orders can be cancelled for a full refund"));
+
+        // Failure policy: a slow system and a broken one
+        from("direct:retriever-slow").delay(1000).setBody(constant("late answer"));
+        from("direct:retriever-broken").throwException(new IllegalStateException("carrier down"));
     }
 }

@@ -36,6 +36,12 @@ public class ContentRetrieverResource {
     @Inject
     RoutedContentRetrieverAiService routedAiService;
 
+    @Inject
+    FailurePolicyAiService failurePolicyAiService;
+
+    @Inject
+    StrictFailurePolicyAiService strictFailurePolicyAiService;
+
     // customerId stands for a server-side identity (e.g. SecurityIdentity); it never comes from the prompt
     @POST
     @Path("/chat")
@@ -47,6 +53,18 @@ public class ContentRetrieverResource {
     @Path("/routed-chat")
     public String routedChat(@QueryParam("customerId") String customerId, String question) {
         return routedAiService.chat(question, parameters(customerId));
+    }
+
+    @POST
+    @Path("/failure-chat")
+    public String failureChat(String question) {
+        return failurePolicyAiService.chat(question);
+    }
+
+    @POST
+    @Path("/strict-chat")
+    public String strictChat(String question) {
+        return strictFailurePolicyAiService.chat(question);
     }
 
     private static InvocationParameters parameters(String customerId) {

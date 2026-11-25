@@ -54,10 +54,6 @@ public final class ContentConverter {
     private ContentConverter() {
     }
 
-    public static List<Content> toContents(Exchange exchange, String sourceName, String documentIdKey) {
-        return toContents(exchange, sourceName, documentIdKey, -1, -1);
-    }
-
     public static List<Content> toContents(
             Exchange exchange, String sourceName, String documentIdKey, int maxResults, int maxChars) {
         Object body = exchange.getMessage().getBody();

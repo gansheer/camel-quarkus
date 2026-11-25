@@ -55,12 +55,13 @@ import org.apache.camel.util.URISupport;
  * Each retriever owns a {@link ProducerTemplate} and a bounded executor, both created in {@link #start()} and stopped
  * in {@link #stop()}: register it with {@link CamelContext#addService(Object)} so the context manages its lifecycle.
  * {@link #retrieve(Query)} sends the exchange asynchronously and waits at most {@link #setTimeout(Duration)}; a
- * rejection or a timeout follows the {@link #setOnError(OnError)} policy.
+ * rejection, a timeout or a route failure follows the {@link #setOnError(OnError)} policy. {@link #setConcurrency(int)}
+ * and {@link #setQueueCapacity(int)} size the executor.
  */
 public class CamelContentRetriever implements ContentRetriever, CamelContextAware, Service {
 
-    private static final int CORE_POOL_SIZE = 2;
-    private static final int QUEUE_CAPACITY = 64;
+    public static final int DEFAULT_CONCURRENCY = 2;
+    public static final int DEFAULT_QUEUE_CAPACITY = 64;
 
     private CamelContext camelContext;
     private final String name;
@@ -70,8 +71,10 @@ public class CamelContentRetriever implements ContentRetriever, CamelContextAwar
     private OnError onError = OnError.FAIL;
     private int maxResults = -1;
     private int maxChars = -1;
-    private volatile ProducerTemplate producer;
-    private volatile Endpoint endpoint;
+    private int concurrency = DEFAULT_CONCURRENCY;
+    private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
+    // replaced as a whole so retrieve() never sees a template without its endpoint
+    private volatile Target target;
 
     public CamelContentRetriever(CamelContext camelContext, String name, String endpointUri) {
         this.camelContext = ObjectHelper.notNull(camelContext, "camelContext");
@@ -145,6 +148,35 @@ public class CamelContentRetriever implements ContentRetriever, CamelContextAwar
         return this;
     }
 
+    public int getConcurrency() {
+        return concurrency;
+    }
+
+    /**
+     * Number of route calls this retriever runs in parallel. Calls beyond it wait in the queue; when that is full too,
+     * the call is rejected and follows {@code on-error}.
+     */
+    public CamelContentRetriever setConcurrency(int concurrency) {
+        if (concurrency < 1) {
+            throw new IllegalArgumentException("concurrency must be >= 1: " + concurrency);
+        }
+        this.concurrency = concurrency;
+        return this;
+    }
+
+    public int getQueueCapacity() {
+        return queueCapacity;
+    }
+
+    /** Number of calls that may wait for a free thread; beyond it a call is rejected and follows {@code on-error}. */
+    public CamelContentRetriever setQueueCapacity(int queueCapacity) {
+        if (queueCapacity < 1) {
+            throw new IllegalArgumentException("queueCapacity must be >= 1: " + queueCapacity);
+        }
+        this.queueCapacity = queueCapacity;
+        return this;
+    }
+
     @Override
     public CamelContext getCamelContext() {
         return camelContext;
@@ -158,14 +190,13 @@ public class CamelContentRetriever implements ContentRetriever, CamelContextAwar
     @Override
     public void start() {
         ExecutorService pool = new ThreadPoolExecutor(
-                CORE_POOL_SIZE, CORE_POOL_SIZE, 0L, TimeUnit.MILLISECONDS,
-                new ArrayBlockingQueue<>(QUEUE_CAPACITY), new ThreadPoolExecutor.AbortPolicy());
+                concurrency, concurrency, 0L, TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(queueCapacity), new ThreadPoolExecutor.AbortPolicy());
         try {
             ProducerTemplate template = getCamelContext().createProducerTemplate();
-            // replaces the template's default CallerRuns pool, which would run the route on the calling thread once full
+            // replaces the template's default caller-runs pool, which would run the route on the calling thread once full
             template.setExecutorService(pool);
-            endpoint = getCamelContext().getEndpoint(endpointUri);
-            producer = template;
+            target = new Target(template, getCamelContext().getEndpoint(endpointUri));
         } catch (RuntimeException e) {
             pool.shutdownNow();
             throw e;
@@ -174,36 +205,39 @@ public class CamelContentRetriever implements ContentRetriever, CamelContextAwar
 
     @Override
     public synchronized void stop() {
-        ProducerTemplate template = producer;
-        producer = null;
-        endpoint = null;
-        // stopping the template shuts the executor down and rejects pending sends
-        ServiceHelper.stopService(template);
+        Target t = target;
+        target = null;
+        // stopping the template shuts the executor down and completes the futures of the tasks it dropped
+        if (t != null) {
+            ServiceHelper.stopService(t.template());
+        }
     }
 
     @Override
     public List<Content> retrieve(Query query) {
-        ProducerTemplate template = producer;
-        Endpoint target = endpoint;
-        if (template == null || target == null) {
+        Target t = target;
+        if (t == null) {
             throw new IllegalStateException(
                     name + " is not started: register it with CamelContext.addService(Object) to start it");
         }
 
-        Exchange exchange = target.createExchange(ExchangePattern.InOut);
+        Exchange exchange = t.endpoint().createExchange(ExchangePattern.InOut);
         exchange.getMessage().setBody(query.text());
         QueryMetadataMapper.toExchange(query.metadata(), exchange);
 
         CompletableFuture<Exchange> future;
         try {
-            future = template.asyncSend(target, exchange);
+            future = t.template().asyncSend(t.endpoint(), exchange);
         } catch (RejectedExecutionException e) {
             return onError.failure(name, "was rejected (executor saturated)", e);
+        } catch (IllegalStateException e) {
+            // the template stopped between the snapshot above and the send
+            return onError.failure(name, "is stopping", e);
         }
         try {
             Exchange answer = timeout == null
                     ? future.get()
-                    : future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+                    : future.get(timeout.toNanos(), TimeUnit.NANOSECONDS);
             if (answer.getException() != null) {
                 return onError.failure(name, "failed", answer.getException());
             }
@@ -218,6 +252,9 @@ public class CamelContentRetriever implements ContentRetriever, CamelContextAwar
         } catch (ExecutionException e) {
             return onError.failure(name, "failed", e.getCause() != null ? e.getCause() : e);
         }
+    }
+
+    private record Target(ProducerTemplate template, Endpoint endpoint) {
     }
 
     private static int positiveOrUnlimited(int value, String what) {
