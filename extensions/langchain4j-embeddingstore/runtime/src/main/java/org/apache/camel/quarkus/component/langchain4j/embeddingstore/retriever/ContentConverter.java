@@ -44,7 +44,8 @@ import static org.apache.camel.quarkus.component.langchain4j.embeddingstore.retr
  * </ul>
  * A non-collection body is treated as a single element. Blank elements are skipped. Every segment gets
  * {@value CamelContentRetrieverConstants#METADATA_SOURCE} and the response headers prefixed with
- * {@value LangChain4j#METADATA_PREFIX}.
+ * {@value LangChain4j#METADATA_PREFIX}. The reserved {@code camel_retrieval_*} keys never come from response headers; a
+ * segment may set {@value CamelContentRetrieverConstants#METADATA_DOCUMENT_ID} itself.
  * <p>
  * {@code maxResults} and {@code maxChars} are applied after conversion: the first keeps the first N items, the second
  * truncates the combined text. Negative values mean unlimited.
@@ -110,6 +111,7 @@ public final class ContentConverter {
 
         Map<String, Object> metadata = new HashMap<>(headerMetadata);
         metadata.putAll(segment.metadata().toMap());
+        // the source is always ours; a segment cannot spoof it
         metadata.put(METADATA_SOURCE, sourceName);
         if (documentId != null) {
             metadata.put(METADATA_DOCUMENT_ID, toMetadataValue(documentId));
@@ -137,9 +139,13 @@ public final class ContentConverter {
                 answer.add(content);
                 remaining -= text.length();
             } else {
-                TextSegment segment = content.textSegment();
-                answer.add(Content.from(
-                        TextSegment.from(text.substring(0, remaining), segment.metadata()), content.metadata()));
+                // never split a surrogate pair
+                int end = Character.isHighSurrogate(text.charAt(remaining - 1)) ? remaining - 1 : remaining;
+                String truncated = text.substring(0, end);
+                if (!truncated.isBlank()) {
+                    TextSegment segment = content.textSegment();
+                    answer.add(Content.from(TextSegment.from(truncated, segment.metadata()), content.metadata()));
+                }
                 remaining = 0;
             }
         }
@@ -156,7 +162,13 @@ public final class ContentConverter {
         Map<String, Object> metadata = new HashMap<>();
         for (Map.Entry<String, Object> header : exchange.getMessage().getHeaders().entrySet()) {
             if (header.getKey().startsWith(LangChain4j.METADATA_PREFIX) && header.getValue() != null) {
-                metadata.put(header.getKey().substring(LangChain4j.METADATA_PREFIX_LEN), toMetadataValue(header.getValue()));
+                String key = header.getKey().substring(LangChain4j.METADATA_PREFIX_LEN);
+                // the reserved keys are always ours: a response header cannot spoof them. Segment metadata may set
+                // the document id on purpose (a route mapping its own id), so only headers are filtered.
+                if (METADATA_SOURCE.equals(key) || METADATA_DOCUMENT_ID.equals(key)) {
+                    continue;
+                }
+                metadata.put(key, toMetadataValue(header.getValue()));
             }
         }
         return metadata;

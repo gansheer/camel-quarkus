@@ -83,3 +83,94 @@ Two limits are worth knowing before treating this as an access control:
 
 * The filter reaches only the augmentors this extension produces. Easy RAG, or an application-provided `RetrievalAugmentor`, replaces them, and the filter is then never consulted — the build logs a warning when it detects that combination.
 * `EmbeddingStore` implementations are not required to support filtering. One that ignores the filter returns every match, so verify against the store actually in use.
+
+=== Camel routes as content retrievers
+
+`CamelContentRetriever` turns a Camel endpoint — a route, a Kamelet or a component — into a LangChain4j `ContentRetriever`, so an `@RegisterAiService` can retrieve from any system Camel reaches (a REST API, a database, a search index), next to or instead of an embedding store. The class lives in the `org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever` package.
+
+Each retriever is one source: a name and an endpoint URI. Wire the sources into a `RetrievalAugmentor` in a supplier and bind it to the AI service:
+
+[source,java]
+----
+@ApplicationScoped
+public class AssistantAugmentor implements Supplier<RetrievalAugmentor> {
+    @Inject
+    CamelContext camelContext;
+    @Inject
+    ChatModel chatModel;
+
+    private RetrievalAugmentor augmentor;
+
+    @PostConstruct
+    void build() throws Exception {
+        CamelContentRetriever orders = new CamelContentRetriever(camelContext, "orders", "direct:orders")
+                .setDocumentIdKey("orderId")
+                .setTimeout(Duration.ofSeconds(2))
+                .setOnError(OnError.EMPTY);
+        CamelContentRetriever kb = new CamelContentRetriever(camelContext, "kb", "direct:kb");
+        // starts the retriever, and stops it with the context
+        camelContext.addService(orders);
+        camelContext.addService(kb);
+
+        // insertion order keeps the router prompt stable
+        Map<ContentRetriever, String> sources = new LinkedHashMap<>();
+        sources.put(orders, "The customer's recent orders");
+        sources.put(kb, "Support articles about orders and refunds");
+
+        augmentor = DefaultRetrievalAugmentor.builder()
+                .queryRouter(LanguageModelQueryRouter.builder()
+                        .chatModel(chatModel)
+                        .retrieverToDescription(sources)
+                        .build())
+                .contentInjector(DefaultContentInjector.builder()
+                        .metadataKeysToInclude(List.of("camel_retrieval_source", "camel_retrieval_document_id"))
+                        .build())
+                .build();
+    }
+
+    @Override
+    public RetrievalAugmentor get() {
+        return augmentor;
+    }
+}
+
+@RegisterAiService(retrievalAugmentor = AssistantAugmentor.class)
+public interface Assistant {
+    String chat(@UserMessage String question, InvocationParameters parameters);
+}
+----
+
+AI services are request scoped and ask the supplier for an augmentor every time one is created, so build it once in `@PostConstruct` of an `@ApplicationScoped` supplier, as above. Configure every retriever before registering it with `camelContext.addService(...)`: registration starts its producer template and thread pool, and its settings cannot change once started. A retriever that is never registered fails every retrieval.
+
+The route receives the query text — possibly rewritten by a query transformer — as the message body, and the query metadata as exchange properties: `langchain4j.query.userMessage` (the original user message), `langchain4j.query.chatMemoryId`, and one `langchain4j.query.param.<key>` per entry of the `InvocationParameters` passed to the AI service method. The response body becomes the retrieved content, one item per element: `String`, `TextSegment` and `Content` elements are used as they are, `Map` elements become `key: value` lines (with `documentIdKey` naming the id entry), anything else goes through the Camel type converter. Every item is tagged with `camel_retrieval_source`, and with `camel_retrieval_document_id` when an id is known; response headers prefixed `langchain4j.metadata.` become item metadata, but can never set the `camel_retrieval_*` keys.
+
+Pass the caller's identity as an invocation parameter, and scope every query in the route with it:
+
+[source,java]
+----
+from("direct:orders")
+    .filter(exchangeProperty("langchain4j.query.param.customerId").isNull())
+        .throwException(new IllegalArgumentException("customerId is required"))
+    .end()
+    .validate(simple("${exchangeProperty[langchain4j.query.param.customerId]} regex '[A-Za-z0-9_-]{1,64}'"))
+    .toD("http://orders-api/customers/${exchangeProperty[langchain4j.query.param.customerId]}/orders?httpMethod=GET")
+    .unmarshal().json(List.class);
+----
+
+Invocation parameters are the only identity a route can rely on. With one query routed to one source, LangChain4j retrieves on the caller's thread; with several sources or several queries it moves to its own executor, where the CDI request context — `SecurityIdentity`, request-scoped beans — is not active. A route must therefore never read request-scoped state, and should fail rather than widen the query when its parameter is missing, since an AI service method that does not declare `InvocationParameters` passes none. Give the route read-only credentials for its backing system, and validate or escape the query text before it reaches a statement or a URI: it comes from an LLM-transformed user message.
+
+Each source has its own failure and cost policy:
+
+[width="100%",cols="2,1,5",options="header"]
+|===
+|Setter |Default |Effect
+
+|`setTimeout` |none |how long a retrieval waits for the route
+|`setOnError` |`FAIL` |`FAIL` fails the AI service call; `EMPTY` logs a warning and contributes no content, so the answer degrades instead
+|`setMaxResults` |unlimited |maximum number of items this source contributes
+|`setMaxChars` |unlimited |maximum number of characters this source contributes across all items
+|`setConcurrency` |2 |number of route calls this source runs in parallel
+|`setQueueCapacity` |64 |number of calls that may wait for a free thread; beyond it the call is rejected and follows `onError`
+|===
+
+The route always runs on the retriever's own bounded pool, never on the calling thread, so a saturated source is rejected instead of blocking the caller. When the timeout elapses, a call still waiting in the queue is dropped, but a call already running keeps running until the route answers: set the component timeouts in the route as well (`requestTimeout`, connection timeouts).

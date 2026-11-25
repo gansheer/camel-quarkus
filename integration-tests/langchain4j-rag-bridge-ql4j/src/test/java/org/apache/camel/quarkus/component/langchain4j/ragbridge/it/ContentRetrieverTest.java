@@ -46,7 +46,12 @@ class ContentRetrieverTest {
                         containsString("KB article matching 'Is my order delayed?'"),
                         containsString("camel_retrieval_source: orders"),
                         containsString("camel_retrieval_source: kb"),
-                        containsString("camel_retrieval_document_id: 1001")));
+                        containsString("camel_retrieval_document_id: 1001"),
+                        // the reserved keys are the retriever's own: headers and segment metadata cannot spoof them
+                        containsString("camel_retrieval_source: spoof"),
+                        not(containsString("header spoof")),
+                        not(containsString("segment spoof")),
+                        not(containsString("camel_retrieval_document_id: header spoof"))));
     }
 
     @Test

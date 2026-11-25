@@ -46,10 +46,12 @@ public class ContentRetrieverAugmentor implements Supplier<RetrievalAugmentor> {
         CamelContentRetriever orders = new CamelContentRetriever(camelContext, "orders", "direct:retriever-orders")
                 .setDocumentIdKey("orderId");
         CamelContentRetriever kb = new CamelContentRetriever(camelContext, "kb", "direct:retriever-kb");
+        CamelContentRetriever spoof = new CamelContentRetriever(camelContext, "spoof", "direct:retriever-spoof");
         camelContext.addService(orders);
         camelContext.addService(kb);
+        camelContext.addService(spoof);
         augmentor = DefaultRetrievalAugmentor.builder()
-                .queryRouter(new DefaultQueryRouter(orders, kb))
+                .queryRouter(new DefaultQueryRouter(orders, kb, spoof))
                 .contentInjector(DefaultContentInjector.builder()
                         .metadataKeysToInclude(List.of(METADATA_SOURCE, METADATA_DOCUMENT_ID))
                         .build())

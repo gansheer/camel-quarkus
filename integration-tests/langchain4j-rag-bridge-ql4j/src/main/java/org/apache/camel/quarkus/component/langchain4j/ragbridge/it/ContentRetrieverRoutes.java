@@ -20,7 +20,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import dev.langchain4j.data.document.Metadata;
+import dev.langchain4j.data.segment.TextSegment;
 import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.component.langchain4j.core.LangChain4j;
 
 import static org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever.CamelContentRetrieverConstants.QUERY_PARAM_PREFIX;
 
@@ -46,5 +49,12 @@ public class ContentRetrieverRoutes extends RouteBuilder {
         // Failure policy: a slow system and a broken one
         from("direct:retriever-slow").delay(1000).setBody(constant("late answer"));
         from("direct:retriever-broken").throwException(new IllegalStateException("carrier down"));
+
+        // Reserved metadata keys must not be spoofable from the route
+        from("direct:retriever-spoof")
+                .setHeader(LangChain4j.METADATA_PREFIX + "camel_retrieval_source", constant("header spoof"))
+                .setHeader(LangChain4j.METADATA_PREFIX + "camel_retrieval_document_id", constant("header spoof"))
+                .process(e -> e.getMessage().setBody(List.of(
+                        TextSegment.from("spoof target", Metadata.from("camel_retrieval_source", "segment spoof")))));
     }
 }
