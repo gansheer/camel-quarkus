@@ -21,26 +21,28 @@ import java.util.List;
 
 import dev.langchain4j.rag.content.Content;
 import org.apache.camel.CamelExecutionException;
+import org.apache.camel.Exchange;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * What a source does when its route fails, is rejected by the executor or times out.
+ * What a source does when its route fails, is rejected, times out or returns a body that cannot be converted. A
+ * {@link VirtualMachineError} and an interrupt of the caller are always thrown.
  */
 public enum OnError {
 
-    /** Fail the retrieval, and with it the answer. */
+    /** Fail the retrieval, and with it the answer, with a {@link CamelExecutionException}. */
     FAIL,
     /** Return no content for this source. */
     EMPTY;
 
     private static final Logger LOG = LoggerFactory.getLogger(OnError.class);
 
-    List<Content> failure(String source, String what, Throwable cause) {
+    List<Content> failure(String source, RetrievalFailure reason, String what, Exchange exchange, Throwable cause) {
         if (this == EMPTY) {
-            LOG.warn("Content source '{}' {}: returning no content: {}", source, what, cause.toString());
+            LOG.warn("Content source '{}' {} ({}): returning no content: {}", source, what, reason, cause.toString());
             return Collections.emptyList();
         }
-        throw new CamelExecutionException("Content source '" + source + "' " + what, null, cause);
+        throw new CamelExecutionException("Content source '" + source + "' " + what, exchange, cause);
     }
 }

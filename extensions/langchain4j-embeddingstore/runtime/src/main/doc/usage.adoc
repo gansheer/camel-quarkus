@@ -142,18 +142,22 @@ public interface Assistant {
 
 AI services are request scoped and ask the supplier for an augmentor every time one is created, so build it once in `@PostConstruct` of an `@ApplicationScoped` supplier, as above. Configure every retriever before registering it with `camelContext.addService(...)`: registration starts its producer template and thread pool, and its settings cannot change once started. A retriever that is never registered fails every retrieval.
 
-The route receives the query text — possibly rewritten by a query transformer — as the message body, and the query metadata as exchange properties: `langchain4j.query.userMessage` (the original user message), `langchain4j.query.chatMemoryId`, and one `langchain4j.query.param.<key>` per entry of the `InvocationParameters` passed to the AI service method. The response body becomes the retrieved content, one item per element: `String`, `TextSegment` and `Content` elements are used as they are, `Map` elements become `key: value` lines (with `documentIdKey` naming the id entry), anything else goes through the Camel type converter. Every item is tagged with `camel_retrieval_source`, and with `camel_retrieval_document_id` when an id is known; response headers prefixed `langchain4j.metadata.` become item metadata, but can never set the `camel_retrieval_*` keys.
+The route receives the query text — possibly rewritten by a query transformer — as the message body, and the query metadata as exchange properties: `CamelLangChain4jRetrieverUserMessage` (the original user message: untrusted text, never an identity), `CamelLangChain4jRetrieverMemoryId`, and `CamelLangChain4jRetrieverParams`, a read-only `Map` of the `InvocationParameters` passed to the AI service method, absent when there are none.
+
+The response body becomes the retrieved content, one item per element of a `Collection`, an array or an `Iterator` (any other body is one item): `String`, `TextSegment` and `Content` elements are used as they are, an `EmbeddingMatch` (the default output of a `langchain4j-embeddingstore` search) gives its embedded segment with the score and the embedding id, `Map` elements become `key: value` lines (with `documentIdKey` naming the id entry), anything else goes through the Camel type converter. A body that cannot be converted follows `onError`.
+
+Every item is tagged with `camel_retrieval_source`, and with `camel_retrieval_document_id` when an id is known: the `documentIdKey` entry of a `Map`, the key set by the route on a segment, or the `camel_ingest_document_id` that `langchain4j-ingest` writes on every segment it stores, so ingested content can be cited. Response headers prefixed `langchain4j.metadata.` become item metadata, but can never set the `camel_retrieval_*` or `camel_ingest_*` keys.
 
 Pass the caller's identity as an invocation parameter, and scope every query in the route with it:
 
 [source,java]
 ----
 from("direct:orders")
-    .filter(exchangeProperty("langchain4j.query.param.customerId").isNull())
+    .filter(simple("${exchangeProperty.CamelLangChain4jRetrieverParams[customerId]} == null"))
         .throwException(new IllegalArgumentException("customerId is required"))
     .end()
-    .validate(simple("${exchangeProperty[langchain4j.query.param.customerId]} regex '[A-Za-z0-9_-]{1,64}'"))
-    .toD("http://orders-api/customers/${exchangeProperty[langchain4j.query.param.customerId]}/orders?httpMethod=GET")
+    .validate(simple("${exchangeProperty.CamelLangChain4jRetrieverParams[customerId]} regex '[A-Za-z0-9_-]{1,64}'"))
+    .toD("http://orders-api/customers/${exchangeProperty.CamelLangChain4jRetrieverParams[customerId]}/orders?httpMethod=GET")
     .unmarshal().json(List.class);
 ----
 
@@ -165,12 +169,14 @@ Each source has its own failure and cost policy:
 |===
 |Setter |Default |Effect
 
-|`setTimeout` |none |how long a retrieval waits for the route
-|`setOnError` |`FAIL` |`FAIL` fails the AI service call; `EMPTY` logs a warning and contributes no content, so the answer degrades instead
-|`setMaxResults` |unlimited |maximum number of items this source contributes
-|`setMaxChars` |unlimited |maximum number of characters this source contributes across all items
+|`setTimeout` |30 seconds |how long a retrieval waits for the route, time in the queue included; `null` waits forever, so a hung source blocks the AI service call
+|`setOnError` |`FAIL` |`FAIL` fails the AI service call; `EMPTY` logs a warning and contributes no content, so the answer degrades instead. A `VirtualMachineError` is always rethrown
+|`setMaxResults` |`0` (unlimited) |maximum number of items this source contributes
+|`setMaxChars` |`0` (unlimited) |maximum number of characters this source contributes across all items
 |`setConcurrency` |2 |number of route calls this source runs in parallel
 |`setQueueCapacity` |64 |number of calls that may wait for a free thread; beyond it the call is rejected and follows `onError`
 |===
 
-The route always runs on the retriever's own bounded pool, never on the calling thread, so a saturated source is rejected instead of blocking the caller. When the timeout elapses, a call still waiting in the queue is dropped, but a call already running keeps running until the route answers: set the component timeouts in the route as well (`requestTimeout`, connection timeouts).
+The route always runs on the retriever's own bounded pool, never on the calling thread, so a saturated source is rejected instead of blocking the caller, with platform and virtual threads alike (the `camel.threads.virtual.enabled` system property). When the timeout elapses, a call still waiting in the queue is dropped, but a call already running keeps running until the route answers: set the component timeouts in the route as well (`requestTimeout`, connection timeouts). When the retriever stops, queued calls follow `onError` and running calls are interrupted.
+
+`OnError.EMPTY` hides a failing source from the answer, so each retriever counts its calls: `getRetrievalCount()`, `getFailureCount()` and `getFailureCount(RetrievalFailure)`, with the reasons `REJECTED`, `STOPPED`, `TIMEOUT`, `ROUTE_FAILURE` and `CONVERSION`.

@@ -16,7 +16,8 @@
  */
 package org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever;
 
-import java.util.Map;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.UserMessage;
@@ -24,20 +25,20 @@ import dev.langchain4j.invocation.InvocationParameters;
 import dev.langchain4j.rag.query.Metadata;
 import org.apache.camel.Exchange;
 
-import static org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever.CamelContentRetrieverConstants.QUERY_CHAT_MEMORY_ID;
-import static org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever.CamelContentRetrieverConstants.QUERY_PARAM_PREFIX;
+import static org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever.CamelContentRetrieverConstants.QUERY_MEMORY_ID;
+import static org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever.CamelContentRetrieverConstants.QUERY_PARAMS;
 import static org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever.CamelContentRetrieverConstants.QUERY_USER_MESSAGE;
 
 /**
  * Maps LangChain4j query metadata to exchange properties. Properties, not headers, so that nothing leaks into endpoint
  * calls made by the route.
  */
-public final class QueryMetadataMapper {
+final class QueryMetadataMapper {
 
     private QueryMetadataMapper() {
     }
 
-    public static void toExchange(Metadata metadata, Exchange exchange) {
+    static void toExchange(Metadata metadata, Exchange exchange) {
         if (metadata == null) {
             return;
         }
@@ -46,13 +47,12 @@ public final class QueryMetadataMapper {
             exchange.setProperty(QUERY_USER_MESSAGE, userMessage.singleText());
         }
         if (metadata.chatMemoryId() != null) {
-            exchange.setProperty(QUERY_CHAT_MEMORY_ID, metadata.chatMemoryId());
+            exchange.setProperty(QUERY_MEMORY_ID, metadata.chatMemoryId());
         }
         InvocationParameters parameters = metadata.invocationParameters();
-        if (parameters != null) {
-            for (Map.Entry<String, Object> entry : parameters.asMap().entrySet()) {
-                exchange.setProperty(QUERY_PARAM_PREFIX + entry.getKey(), entry.getValue());
-            }
+        if (parameters != null && !parameters.asMap().isEmpty()) {
+            // a copy: the route must not change the parameters of the invocation
+            exchange.setProperty(QUERY_PARAMS, Collections.unmodifiableMap(new LinkedHashMap<>(parameters.asMap())));
         }
     }
 }

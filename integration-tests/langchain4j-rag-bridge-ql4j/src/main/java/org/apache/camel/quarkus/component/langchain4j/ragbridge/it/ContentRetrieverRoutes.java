@@ -25,7 +25,7 @@ import dev.langchain4j.data.segment.TextSegment;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.component.langchain4j.core.LangChain4j;
 
-import static org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever.CamelContentRetrieverConstants.QUERY_PARAM_PREFIX;
+import static org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever.CamelContentRetrieverConstants.QUERY_PARAMS;
 
 public class ContentRetrieverRoutes extends RouteBuilder {
 
@@ -34,7 +34,8 @@ public class ContentRetrieverRoutes extends RouteBuilder {
         // Metadata-driven: the caller identity selects the data, the prompt text is not used
         from("direct:retriever-orders")
                 .process(e -> {
-                    String customerId = e.getProperty(QUERY_PARAM_PREFIX + "customerId", String.class);
+                    Map<?, ?> params = e.getProperty(QUERY_PARAMS, Map.class);
+                    Object customerId = params != null ? params.get("customerId") : null;
                     Map<String, Object> order = new LinkedHashMap<>();
                     order.put("orderId", "1001");
                     order.put("customer", customerId);
