@@ -184,6 +184,7 @@
         <module>kudu</module>
         <module>langchain4j-agent</module>
         <module>langchain4j-chat</module>
+        <module>langchain4j-content-retriever</module>
         <module>langchain4j-embeddings</module>
         <module>langchain4j-embeddingstore</module>
         <module>langchain4j-ingest</module>

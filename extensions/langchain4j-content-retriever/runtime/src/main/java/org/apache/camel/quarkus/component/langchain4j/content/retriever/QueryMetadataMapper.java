@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever;
+package org.apache.camel.quarkus.component.langchain4j.content.retriever;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -25,9 +25,9 @@ import dev.langchain4j.invocation.InvocationParameters;
 import dev.langchain4j.rag.query.Metadata;
 import org.apache.camel.Exchange;
 
-import static org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever.CamelContentRetrieverConstants.QUERY_MEMORY_ID;
-import static org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever.CamelContentRetrieverConstants.QUERY_PARAMS;
-import static org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever.CamelContentRetrieverConstants.QUERY_USER_MESSAGE;
+import static org.apache.camel.quarkus.component.langchain4j.content.retriever.CamelContentRetrieverConstants.QUERY_MEMORY_ID;
+import static org.apache.camel.quarkus.component.langchain4j.content.retriever.CamelContentRetrieverConstants.QUERY_PARAMS;
+import static org.apache.camel.quarkus.component.langchain4j.content.retriever.CamelContentRetrieverConstants.QUERY_USER_MESSAGE;
 
 /**
  * Maps LangChain4j query metadata to exchange properties. Properties, not headers, so that nothing leaks into endpoint

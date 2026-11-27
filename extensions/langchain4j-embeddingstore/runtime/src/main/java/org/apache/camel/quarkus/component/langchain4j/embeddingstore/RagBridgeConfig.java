@@ -19,6 +19,7 @@ package org.apache.camel.quarkus.component.langchain4j.embeddingstore;
 import java.util.Map;
 import java.util.Optional;
 
+import io.quarkus.runtime.annotations.ConfigDocMapKey;
 import io.quarkus.runtime.annotations.ConfigPhase;
 import io.quarkus.runtime.annotations.ConfigRoot;
 import io.smallrye.config.ConfigMapping;
@@ -48,10 +49,20 @@ public interface RagBridgeConfig {
         /**
          * CDI bean name of the `EmbeddingStore` to use.
          * Matches beans annotated with `@Named("name")` or `@EmbeddingStoreName("name")`.
+         * Optional when the augmentor references at least one Camel retriever.
          *
          * @asciidoclet
          */
-        String embeddingStoreName();
+        Optional<String> embeddingStoreName();
+
+        /**
+         * Camel retrievers this augmentor retrieves from, next to its embedding store, by the name they are declared
+         * with in `quarkus.camel.langchain4j.retriever.<name>` or `@Retriever("<name>")`.
+         *
+         * @asciidoclet
+         */
+        @ConfigDocMapKey("retriever-name")
+        Map<String, AugmentorRetrieverConfig> retrievers();
 
         /**
          * CDI bean name of the `EmbeddingModel` to use.
@@ -72,5 +83,17 @@ public interface RagBridgeConfig {
         @WithName("default")
         @WithDefault("false")
         boolean defaultAugmentor();
+    }
+
+    interface AugmentorRetrieverConfig {
+
+        /**
+         * What this retriever returns, for example `The customer's orders of the last 30 days`. The augmentor
+         * calls every source on every query today; a language-model query router will pick sources by their
+         * description.
+         *
+         * @asciidoclet
+         */
+        String description();
     }
 }

@@ -16,6 +16,7 @@
  */
 package org.apache.camel.quarkus.component.langchain4j.embeddingstore;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -23,13 +24,18 @@ import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.rag.DefaultRetrievalAugmentor;
 import dev.langchain4j.rag.RetrievalAugmentor;
+import dev.langchain4j.rag.content.injector.DefaultContentInjector;
+import dev.langchain4j.rag.content.retriever.ContentRetriever;
 import dev.langchain4j.rag.content.retriever.EmbeddingStoreContentRetriever;
+import dev.langchain4j.rag.query.router.DefaultQueryRouter;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import io.quarkiverse.langchain4j.EmbeddingStoreName;
 import io.quarkus.arc.Arc;
 import io.quarkus.arc.InstanceHandle;
 import jakarta.enterprise.inject.literal.NamedLiteral;
 import jakarta.enterprise.util.TypeLiteral;
+import org.apache.camel.quarkus.component.langchain4j.content.retriever.CamelContentRetrieverConstants;
+import org.apache.camel.quarkus.component.langchain4j.content.retriever.CamelRetrievers;
 import org.jboss.logging.Logger;
 
 /**
@@ -47,6 +53,8 @@ public class DefaultRetrievalAugmentorSupplier implements Supplier<RetrievalAugm
     private final String augmentorName;
     private final String embeddingStoreName;
     private final String embeddingModelName;
+    private final boolean useEmbeddingStore;
+    private final List<String> retrieverNames;
 
     public DefaultRetrievalAugmentorSupplier() {
         this(null, null);
@@ -58,13 +66,51 @@ public class DefaultRetrievalAugmentorSupplier implements Supplier<RetrievalAugm
 
     public DefaultRetrievalAugmentorSupplier(String embeddingStoreName, String embeddingModelName,
             String augmentorName) {
+        this(embeddingStoreName, embeddingModelName, augmentorName, true, List.of());
+    }
+
+    public DefaultRetrievalAugmentorSupplier(String embeddingStoreName, String embeddingModelName,
+            String augmentorName, boolean useEmbeddingStore, List<String> retrieverNames) {
         this.embeddingStoreName = embeddingStoreName;
         this.embeddingModelName = embeddingModelName;
         this.augmentorName = augmentorName;
+        this.useEmbeddingStore = useEmbeddingStore;
+        this.retrieverNames = List.copyOf(retrieverNames);
     }
 
     @Override
     public RetrievalAugmentor get() {
+        List<ContentRetriever> retrievers = new ArrayList<>();
+        if (useEmbeddingStore) {
+            retrievers.add(embeddingStoreRetriever());
+        }
+        CamelRetrievers camelRetrievers = retrieverNames.isEmpty()
+                ? null : Arc.container().instance(CamelRetrievers.class).get();
+        for (String name : retrieverNames) {
+            retrievers.add(camelRetrievers.retriever(name));
+        }
+        LOG.debugf("Creating RetrievalAugmentor '%s' over %s%s", augmentorName != null ? augmentorName : "@Default",
+                useEmbeddingStore ? "the embedding store" : "no embedding store",
+                retrieverNames.isEmpty() ? "" : " and the Camel retrievers " + retrieverNames);
+
+        DefaultRetrievalAugmentor.DefaultRetrievalAugmentorBuilder augmentor = DefaultRetrievalAugmentor.builder();
+        if (retrievers.size() == 1) {
+            augmentor.contentRetriever(retrievers.get(0));
+        } else {
+            // every source on every query, with no model call
+            augmentor.queryRouter(new DefaultQueryRouter(retrievers));
+        }
+        if (!retrieverNames.isEmpty()) {
+            // the prompt names the source and the citation id of each item; a store-only augmentor keeps the default
+            augmentor.contentInjector(DefaultContentInjector.builder()
+                    .metadataKeysToInclude(List.of(CamelContentRetrieverConstants.METADATA_SOURCE,
+                            CamelContentRetrieverConstants.METADATA_DOCUMENT_ID))
+                    .build());
+        }
+        return augmentor.build();
+    }
+
+    private ContentRetriever embeddingStoreRetriever() {
         EmbeddingStore<TextSegment> store;
         if (embeddingStoreName != null) {
             store = Arc.container()
@@ -129,8 +175,6 @@ public class DefaultRetrievalAugmentorSupplier implements Supplier<RetrievalAugm
                     embeddingStoreName != null ? embeddingStoreName : "@Default");
         }
 
-        return DefaultRetrievalAugmentor.builder()
-                .contentRetriever(retriever.build())
-                .build();
+        return retriever.build();
     }
 }

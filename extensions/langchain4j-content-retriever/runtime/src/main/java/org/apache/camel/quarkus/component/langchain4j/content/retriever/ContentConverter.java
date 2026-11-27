@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever;
+package org.apache.camel.quarkus.component.langchain4j.content.retriever;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.segment.TextSegment;
@@ -36,9 +37,9 @@ import dev.langchain4j.store.embedding.EmbeddingMatch;
 import org.apache.camel.Exchange;
 import org.apache.camel.component.langchain4j.core.LangChain4j;
 
-import static org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever.CamelContentRetrieverConstants.INGEST_METADATA_DOCUMENT_ID;
-import static org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever.CamelContentRetrieverConstants.METADATA_DOCUMENT_ID;
-import static org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever.CamelContentRetrieverConstants.METADATA_SOURCE;
+import static org.apache.camel.quarkus.component.langchain4j.content.retriever.CamelContentRetrieverConstants.INGEST_METADATA_DOCUMENT_ID;
+import static org.apache.camel.quarkus.component.langchain4j.content.retriever.CamelContentRetrieverConstants.METADATA_DOCUMENT_ID;
+import static org.apache.camel.quarkus.component.langchain4j.content.retriever.CamelContentRetrieverConstants.METADATA_SOURCE;
 
 /**
  * Converts the message body returned by a retrieval route to {@code List<Content>}, one {@link Content} per element:
@@ -49,16 +50,17 @@ import static org.apache.camel.quarkus.component.langchain4j.embeddingstore.retr
  * <li>{@link Map}: one {@code key: value} line per entry</li>
  * <li>anything else: converted to {@link String} with the Camel type converter</li>
  * </ul>
- * A {@link Collection}, an object array or an {@link Iterator} body is split into its elements; any other body is a
- * single element. Blank elements are skipped. Every segment gets
- * {@value CamelContentRetrieverConstants#METADATA_SOURCE} and the response headers prefixed with
- * {@value LangChain4j#METADATA_PREFIX}. The reserved {@code camel_retrieval_*} and {@code camel_ingest_*} keys never
- * come from response headers. A segment may set {@value CamelContentRetrieverConstants#METADATA_DOCUMENT_ID} itself;
- * otherwise its {@value CamelContentRetrieverConstants#INGEST_METADATA_DOCUMENT_ID}, written by
- * camel-langchain4j-ingest, is copied to it.
+ * A {@link Collection}, an object array, an {@link Iterator} or a {@link Stream} body is split into its elements; any
+ * other body is a single element. Reading stops once {@code maxResults} items are converted; a stream is closed. Blank
+ * elements are skipped. Every segment gets {@value CamelContentRetrieverConstants#METADATA_SOURCE} and the response
+ * headers prefixed with {@value LangChain4j#METADATA_PREFIX}. The reserved {@code camel_retrieval_*} and
+ * {@code camel_ingest_*} keys never come from response headers. A segment may set
+ * {@value CamelContentRetrieverConstants#METADATA_DOCUMENT_ID} itself; otherwise its
+ * {@value CamelContentRetrieverConstants#INGEST_METADATA_DOCUMENT_ID}, written by camel-langchain4j-ingest, is copied
+ * to it.
  * <p>
- * {@code maxResults} and {@code maxChars} are applied after conversion: the first keeps the first N items, the second
- * truncates the combined text. {@code 0} means unlimited, as {@code maxDocumentSize} in camel-langchain4j-ingest.
+ * {@code maxResults} keeps the first N items, {@code maxChars} truncates the combined text. {@code 0} means unlimited,
+ * as {@code maxDocumentSize} in camel-langchain4j-ingest.
  */
 final class ContentConverter {
 
@@ -70,20 +72,30 @@ final class ContentConverter {
 
     static List<Content> toContents(
             Exchange exchange, String sourceName, String documentIdKey, int maxResults, int maxChars) {
-        Collection<?> items = items(exchange.getMessage().getBody());
-        if (items.isEmpty()) {
+        Object body = exchange.getMessage().getBody();
+        if (body instanceof Stream<?> stream) {
+            // a stream may hold a resource (Files.lines): close it, read or not
+            try (stream) {
+                return toContents(exchange, stream.iterator(), sourceName, documentIdKey, maxResults, maxChars);
+            }
+        }
+        return toContents(exchange, items(body), sourceName, documentIdKey, maxResults, maxChars);
+    }
+
+    private static List<Content> toContents(
+            Exchange exchange, Iterator<?> items, String sourceName, String documentIdKey, int maxResults,
+            int maxChars) {
+        if (!items.hasNext()) {
             return Collections.emptyList();
         }
         Map<String, Object> headerMetadata = headerMetadata(exchange);
-        List<Content> contents = new ArrayList<>(items.size());
-        for (Object item : items) {
-            Content content = toContent(exchange, item, sourceName, documentIdKey, headerMetadata);
+        List<Content> contents = new ArrayList<>();
+        // stop at maxResults: the rest of an iterator or a stream is never read
+        while (items.hasNext() && (maxResults == 0 || contents.size() < maxResults)) {
+            Content content = toContent(exchange, items.next(), sourceName, documentIdKey, headerMetadata);
             if (content != null) {
                 contents.add(content);
             }
-        }
-        if (maxResults > 0 && contents.size() > maxResults) {
-            contents = new ArrayList<>(contents.subList(0, maxResults));
         }
         if (maxChars > 0) {
             contents = truncate(contents, maxChars);
@@ -91,22 +103,20 @@ final class ContentConverter {
         return contents;
     }
 
-    private static Collection<?> items(Object body) {
+    private static Iterator<?> items(Object body) {
         if (body == null) {
-            return Collections.emptyList();
+            return Collections.emptyIterator();
         }
         if (body instanceof Collection<?> collection) {
-            return collection;
+            return collection.iterator();
         }
         if (body instanceof Object[] array) {
-            return Arrays.asList(array);
+            return Arrays.asList(array).iterator();
         }
         if (body instanceof Iterator<?> iterator) {
-            List<Object> answer = new ArrayList<>();
-            iterator.forEachRemaining(answer::add);
-            return answer;
+            return iterator;
         }
-        return Collections.singletonList(body);
+        return Collections.singletonList(body).iterator();
     }
 
     private static Content toContent(
@@ -132,7 +142,15 @@ final class ContentConverter {
         TextSegment segment;
         Object documentId = null;
         if (item instanceof Content content) {
-            contentMetadata = content.metadata();
+            if (contentMetadata == null) {
+                contentMetadata = content.metadata();
+            } else {
+                // an EmbeddingMatch<Content>: the score and the id of this match win over the stored ones
+                Map<ContentMetadata, Object> merged = new EnumMap<>(ContentMetadata.class);
+                merged.putAll(content.metadata());
+                merged.putAll(contentMetadata);
+                contentMetadata = merged;
+            }
             segment = content.textSegment();
         } else if (item instanceof TextSegment textSegment) {
             segment = textSegment;
@@ -148,6 +166,10 @@ final class ContentConverter {
         }
         if (segment == null) {
             return null;
+        }
+        if (documentId == null && documentIdKey != null) {
+            // a TextSegment or Content element, an embedding store hit for example: the key is a metadata key
+            documentId = segment.metadata().toMap().get(documentIdKey);
         }
 
         Map<String, Object> metadata = new HashMap<>(headerMetadata);

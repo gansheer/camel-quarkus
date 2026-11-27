@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever;
+package org.apache.camel.quarkus.component.langchain4j.content.retriever;
 
 import java.time.Duration;
 import java.util.EnumMap;
@@ -145,8 +145,8 @@ public class CamelContentRetriever extends ServiceSupport implements ContentRetr
     }
 
     /**
-     * Key of the element id when the route returns {@code Map} elements; copied to
-     * {@value CamelContentRetrieverConstants#METADATA_DOCUMENT_ID}.
+     * Key of the element id: the entry of a {@code Map} element, or the metadata key of a {@code TextSegment} or
+     * {@code Content} element; copied to {@value CamelContentRetrieverConstants#METADATA_DOCUMENT_ID}.
      */
     public CamelContentRetriever setDocumentIdKey(String documentIdKey) {
         checkNotStarted();
@@ -253,6 +253,11 @@ public class CamelContentRetriever extends ServiceSupport implements ContentRetr
 
     @Override
     protected void doStart() throws Exception {
+        if ((long) concurrency + queueCapacity > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                    name + ": concurrency + queueCapacity must not exceed " + Integer.MAX_VALUE + ": " + concurrency
+                            + " + " + queueCapacity);
+        }
         Endpoint endpoint = CamelContextHelper.getMandatoryEndpoint(camelContext, endpointUri);
         // The bounds are enforced by the semaphores of the Target, not by the pool: with virtual threads the pool is
         // one thread per task, bounded by maxQueueSize only, and it blocks a caller beyond it instead of rejecting.

@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -47,6 +48,7 @@ import io.quarkus.runtime.configuration.ConfigurationException;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.context.Dependent;
 import jakarta.inject.Named;
+import org.apache.camel.quarkus.component.langchain4j.content.retriever.deployment.CamelRetrieverNamesBuildItem;
 import org.apache.camel.quarkus.component.langchain4j.embeddingstore.Langchain4jEmbeddingstoreRecorder;
 import org.apache.camel.quarkus.component.langchain4j.embeddingstore.RagAugmentorName;
 import org.apache.camel.quarkus.component.langchain4j.embeddingstore.RagBridgeConfig;
@@ -196,6 +198,7 @@ class Langchain4jEmbeddingstoreRagProcessor {
             BeanDiscoveryFinishedBuildItem beanDiscovery,
             List<AnnouncedSyntheticBeanBuildItem> announcedSyntheticBeans,
             RagBridgeConfig ragBridgeConfig,
+            CamelRetrieverNamesBuildItem camelRetrievers,
             Langchain4jEmbeddingstoreRecorder recorder,
             BuildProducer<SyntheticBeanBuildItem> syntheticBeans,
             BuildProducer<DefaultRetrievalAugmentorBuildItem> defaultAugmentor) {
@@ -207,8 +210,11 @@ class Langchain4jEmbeddingstoreRagProcessor {
         Map<String, AugmentorDefinition> effective = new TreeMap<>();
         for (Map.Entry<String, AugmentorConfig> entry : ragBridgeConfig.augmentors().entrySet()) {
             AugmentorConfig cfg = entry.getValue();
-            effective.put(entry.getKey(), new AugmentorDefinition(
-                    cfg.embeddingStoreName(), cfg.embeddingModelName().orElse(null), cfg.defaultAugmentor()));
+            AugmentorDefinition def = new AugmentorDefinition(cfg.embeddingStoreName().orElse(null),
+                    cfg.embeddingModelName().orElse(null), cfg.defaultAugmentor(),
+                    List.copyOf(new TreeMap<>(cfg.retrievers()).keySet()));
+            validateAugmentor(entry.getKey(), def, camelRetrievers.getNames());
+            effective.put(entry.getKey(), def);
         }
 
         if (!effective.isEmpty()) {
@@ -218,16 +224,18 @@ class Langchain4jEmbeddingstoreRagProcessor {
                 String name = entry.getKey();
                 AugmentorDefinition def = entry.getValue();
 
-                LOG.debugf("Registering named RetrievalAugmentor '%s' backed by EmbeddingStore '%s'%s",
-                        name, def.embeddingStoreName(), name.equals(designatedDefault) ? " (default)" : "");
+                LOG.debugf("Registering named RetrievalAugmentor '%s' backed by EmbeddingStore '%s' and the Camel "
+                        + "retrievers %s%s", name, def.embeddingStoreName(), def.retrieverNames(),
+                        name.equals(designatedDefault) ? " (default)" : "");
 
                 SyntheticBeanBuildItem.ExtendedBeanConfigurator configurator = SyntheticBeanBuildItem
                         .configure(RetrievalAugmentor.class)
                         .scope(ApplicationScoped.class)
                         .addQualifier().annotation(Named.class).addValue("value", name).done()
                         .setRuntimeInit()
-                        .supplier(recorder.createRetrievalAugmentorSupplier(
-                                def.embeddingStoreName(), def.embeddingModelName(), name));
+                        .supplier(recorder.createConfiguredRetrievalAugmentorSupplier(name,
+                                def.embeddingStoreName() != null, def.embeddingStoreName(), def.embeddingModelName(),
+                                def.retrieverNames()));
 
                 if (name.equals(designatedDefault)) {
                     // keeps @Named only: the implicit @Default makes it the one candidate the
@@ -327,7 +335,33 @@ class Langchain4jEmbeddingstoreRagProcessor {
                         + "quarkus.camel.langchain4j.rag.augmentors.<name>.default=true");
     }
 
-    record AugmentorDefinition(String embeddingStoreName, String embeddingModelName, boolean markedDefault) {
+    /**
+     * An augmentor retrieves from an embedding store, from Camel retrievers, or both; a reference to a retriever
+     * that is not declared would fail every AI service call, so it fails the build.
+     */
+    static void validateAugmentor(String name, AugmentorDefinition def, Set<String> knownRetrievers) {
+        if (def.embeddingStoreName() == null && def.retrieverNames().isEmpty()) {
+            throw new ConfigurationException("Retrieval augmentor '" + name + "' has no source: set "
+                    + "quarkus.camel.langchain4j.rag.augmentors." + name + ".embedding-store-name, or reference a "
+                    + "Camel retriever with quarkus.camel.langchain4j.rag.augmentors." + name
+                    + ".retrievers.<retriever>.description");
+        }
+        List<String> unknown = def.retrieverNames().stream().filter(r -> !knownRetrievers.contains(r)).toList();
+        if (!unknown.isEmpty()) {
+            throw new ConfigurationException("Retrieval augmentor '" + name + "' references the Camel retrievers "
+                    + unknown + ", which are not declared. Declare them with "
+                    + "quarkus.camel.langchain4j.retriever.<name>.uri or @Retriever(\"<name>\"); declared: "
+                    + new TreeSet<>(knownRetrievers));
+        }
+    }
+
+    /** @param embeddingStoreName {@code null} when the augmentor retrieves from Camel retrievers only */
+    record AugmentorDefinition(String embeddingStoreName, String embeddingModelName, boolean markedDefault,
+            List<String> retrieverNames) {
+
+        AugmentorDefinition(String embeddingStoreName, String embeddingModelName, boolean markedDefault) {
+            this(embeddingStoreName, embeddingModelName, markedDefault, List.of());
+        }
     }
 
     /**

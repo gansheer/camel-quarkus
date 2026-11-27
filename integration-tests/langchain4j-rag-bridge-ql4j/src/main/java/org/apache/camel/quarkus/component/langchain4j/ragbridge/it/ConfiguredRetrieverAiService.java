@@ -14,22 +14,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever;
+package org.apache.camel.quarkus.component.langchain4j.ragbridge.it;
+
+import dev.langchain4j.invocation.InvocationParameters;
+import dev.langchain4j.service.UserMessage;
+import io.quarkiverse.langchain4j.RegisterAiService;
+import jakarta.enterprise.context.ApplicationScoped;
 
 /**
- * Why a retrieval did not produce content from its route. Each one follows the {@link OnError} policy and is counted by
- * {@link CamelContentRetriever#getFailureCount(RetrievalFailure)}.
+ * Uses the default augmentor: under {@code ConfiguredRetrieverProfile}, the one the bridge builds over the declared
+ * Camel retrievers.
  */
-public enum RetrievalFailure {
+@ApplicationScoped
+@RegisterAiService(chatLanguageModelSupplier = RagAiService.EchoChatModelSupplier.class, chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class)
+public interface ConfiguredRetrieverAiService {
 
-    /** The call was rejected: {@code concurrency} calls running and {@code queueCapacity} calls queued. */
-    REJECTED,
-    /** The retriever stopped before the call reached the route. */
-    STOPPED,
-    /** The route did not answer within {@code timeout}. */
-    TIMEOUT,
-    /** The route failed with an exception. */
-    ROUTE_FAILURE,
-    /** The route answered with a body that cannot be converted to content. */
-    CONVERSION
+    String chat(@UserMessage String question, InvocationParameters parameters);
 }

@@ -28,10 +28,10 @@ import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.apache.camel.CamelContext;
-import org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever.CamelContentRetriever;
-import org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever.OnError;
+import org.apache.camel.quarkus.component.langchain4j.content.retriever.CamelContentRetriever;
+import org.apache.camel.quarkus.component.langchain4j.content.retriever.OnError;
 
-import static org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever.CamelContentRetrieverConstants.METADATA_SOURCE;
+import static org.apache.camel.quarkus.component.langchain4j.content.retriever.CamelContentRetrieverConstants.METADATA_SOURCE;
 
 /**
  * Sources whose {@code on-error} policy is {@code empty}: a slow system times out and a broken one throws, and neither

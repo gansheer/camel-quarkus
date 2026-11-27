@@ -25,7 +25,7 @@ import dev.langchain4j.data.segment.TextSegment;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.component.langchain4j.core.LangChain4j;
 
-import static org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever.CamelContentRetrieverConstants.QUERY_PARAMS;
+import static org.apache.camel.quarkus.component.langchain4j.content.retriever.CamelContentRetrieverConstants.QUERY_PARAMS;
 
 public class ContentRetrieverRoutes extends RouteBuilder {
 

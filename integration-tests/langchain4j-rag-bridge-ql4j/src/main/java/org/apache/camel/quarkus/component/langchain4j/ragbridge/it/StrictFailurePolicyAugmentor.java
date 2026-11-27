@@ -28,9 +28,9 @@ import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.apache.camel.CamelContext;
-import org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever.CamelContentRetriever;
+import org.apache.camel.quarkus.component.langchain4j.content.retriever.CamelContentRetriever;
 
-import static org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever.CamelContentRetrieverConstants.METADATA_SOURCE;
+import static org.apache.camel.quarkus.component.langchain4j.content.retriever.CamelContentRetrieverConstants.METADATA_SOURCE;
 
 /**
  * The default {@code on-error=fail}: a broken source fails the retrieval, and with it the answer.

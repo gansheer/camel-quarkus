@@ -17,10 +17,16 @@
 package org.apache.camel.quarkus.component.langchain4j.ragbridge.it;
 
 import dev.langchain4j.invocation.InvocationParameters;
+import dev.langchain4j.rag.content.retriever.ContentRetriever;
+import jakarta.enterprise.inject.Any;
+import jakarta.enterprise.inject.Instance;
+import jakarta.enterprise.inject.literal.NamedLiteral;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
@@ -41,6 +47,13 @@ public class ContentRetrieverResource {
 
     @Inject
     StrictFailurePolicyAiService strictFailurePolicyAiService;
+
+    @Inject
+    ConfiguredRetrieverAiService configuredRetrieverAiService;
+
+    @Inject
+    @Any
+    Instance<ContentRetriever> retrievers;
 
     // customerId stands for a server-side identity (e.g. SecurityIdentity); it never comes from the prompt
     @POST
@@ -65,6 +78,20 @@ public class ContentRetrieverResource {
     @Path("/strict-chat")
     public String strictChat(String question) {
         return strictFailurePolicyAiService.chat(question);
+    }
+
+    @POST
+    @Path("/configured-chat")
+    public String configuredChat(@QueryParam("customerId") String customerId, String question) {
+        return configuredRetrieverAiService.chat(question, parameters(customerId));
+    }
+
+    // a declared retriever is a @Named bean: its toString names the source and the endpoint
+    @GET
+    @Path("/retriever-bean/{name}")
+    public String retrieverBean(@PathParam("name") String name) {
+        Instance<ContentRetriever> retriever = retrievers.select(NamedLiteral.of(name));
+        return retriever.isResolvable() ? retriever.get().toString() : "none";
     }
 
     private static InvocationParameters parameters(String customerId) {

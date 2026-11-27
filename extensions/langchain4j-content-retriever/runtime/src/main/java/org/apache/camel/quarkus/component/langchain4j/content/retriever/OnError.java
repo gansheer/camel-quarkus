@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.camel.quarkus.component.langchain4j.embeddingstore.retriever;
+package org.apache.camel.quarkus.component.langchain4j.content.retriever;
 
 import java.util.Collections;
 import java.util.List;

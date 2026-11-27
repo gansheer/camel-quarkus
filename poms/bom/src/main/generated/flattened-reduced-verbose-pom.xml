@@ -6695,6 +6695,16 @@
       </dependency>
       <dependency>
         <groupId>org.apache.camel.quarkus</groupId>
+        <artifactId>camel-quarkus-langchain4j-content-retriever</artifactId>
+        <version>4.0.0-SNAPSHOT</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.camel.quarkus</groupId>
+        <artifactId>camel-quarkus-langchain4j-content-retriever-deployment</artifactId>
+        <version>4.0.0-SNAPSHOT</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.camel.quarkus</groupId>
         <artifactId>camel-quarkus-langchain4j-embeddings</artifactId>
         <version>4.0.0-SNAPSHOT</version>
       </dependency>
@@ -8524,11 +8534,6 @@
       </dependency>
       <dependency>
         <groupId>org.apache.cxf</groupId>
-        <artifactId>cxf-integration-tracing-opentelemetry</artifactId>
-        <version>4.2.4</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.cxf</groupId>
         <artifactId>cxf-rt-bindings-soap</artifactId>
         <version>4.2.4</version>
       </dependency>
@@ -8571,11 +8576,6 @@
       <dependency>
         <groupId>org.apache.cxf</groupId>
         <artifactId>cxf-rt-frontend-simple</artifactId>
-        <version>4.2.4</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.cxf</groupId>
-        <artifactId>cxf-rt-management</artifactId>
         <version>4.2.4</version>
       </dependency>
       <dependency>
@@ -8636,11 +8636,6 @@
       <dependency>
         <groupId>org.apache.cxf</groupId>
         <artifactId>cxf-rt-ws-policy</artifactId>
-        <version>4.2.4</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.cxf</groupId>
-        <artifactId>cxf-rt-ws-rm</artifactId>
         <version>4.2.4</version>
       </dependency>
       <dependency>
@@ -9247,27 +9242,6 @@
         <groupId>org.json</groupId>
         <artifactId>json</artifactId>
         <version>20260814</version>
-      </dependency>
-      <dependency>
-        <groupId>org.jvnet.jaxb</groupId>
-        <artifactId>jaxb-plugins</artifactId>
-        <version>4.0.16</version>
-        <exclusions>
-          <exclusion>
-            <groupId>org.slf4j</groupId>
-            <artifactId>jcl-over-slf4j</artifactId>
-          </exclusion>
-        </exclusions>
-      </dependency>
-      <dependency>
-        <groupId>org.jvnet.jaxb</groupId>
-        <artifactId>jaxb-plugins-runtime</artifactId>
-        <version>4.0.16</version>
-      </dependency>
-      <dependency>
-        <groupId>org.jvnet.jaxb</groupId>
-        <artifactId>jaxb-plugins-tools</artifactId>
-        <version>4.0.16</version>
       </dependency>
       <dependency>
         <groupId>org.jvnet.mimepull</groupId>
