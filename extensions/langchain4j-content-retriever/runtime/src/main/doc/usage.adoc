@@ -1,0 +1,133 @@
+The extension turns a Camel endpoint — a route, a Kamelet or a component — into a LangChain4j `ContentRetriever`, so a retrieval augmentor can retrieve from any system Camel reaches (a REST API, a database, a search index), next to or instead of an embedding store. The classes live in the `org.apache.camel.quarkus.component.langchain4j.content.retriever` package. A retriever needs neither an embedding store nor Quarkus LangChain4j.
+
+=== Declaring retrievers in configuration or with `@Retriever`
+
+Declare each retriever once, by name, in configuration:
+
+[source,properties]
+----
+quarkus.camel.langchain4j.retriever.orders.uri=direct:orders
+quarkus.camel.langchain4j.retriever.orders.timeout=2s
+quarkus.camel.langchain4j.retriever.orders.on-error=empty
+quarkus.camel.langchain4j.retriever.orders.document-id-key=orderId
+----
+
+or with a `@Retriever` method on a CDI bean, its Java twin:
+
+[source,java]
+----
+@ApplicationScoped
+public class Retrievers {
+
+    @Retriever("kb")
+    RetrieverSpec kb() {
+        return RetrieverSpec.endpoint("direct:kb")
+                .timeout(Duration.ofSeconds(2))
+                .maxChars(4000);
+    }
+}
+----
+
+Each retriever is a `@Named("<name>")` `ContentRetriever` bean, registered with the Camel context, which starts and stops it; a wrong endpoint fails the startup. The `uri` is fixed at build time, the other settings — `timeout`, `on-error`, `max-results`, `max-chars`, `concurrency`, `queue-capacity`, `document-id-key` — are runtime configuration with the defaults of the table in <<extensions-langchain4j-content-retriever-usage-failure-and-cost-control,Failure and cost control>>. A `@Retriever` method runs once, at startup. Its name must not collide with a configured retriever, which fails the build, and its settings all come from the `RetrieverSpec`: setting `quarkus.camel.langchain4j.retriever.<name>.*` for it fails the startup rather than being silently ignored.
+
+A retriever is used by a retrieval augmentor: either the xref:reference/extensions/langchain4j-embeddingstore.adoc#extensions-langchain4j-embeddingstore-usage-camel-retrievers-in-a-retrieval-augmentor[RAG augmentor bridge] of the `langchain4j-embeddingstore` extension, configured with properties, or an augmentor wired by hand, injecting the retriever with `@Named("<name>") ContentRetriever`.
+
+=== What the route receives and returns
+
+The route receives the query text — possibly rewritten by a query transformer — as the message body, and the query metadata as exchange properties: `CamelLangChain4jRetrieverUserMessage` (the original user message: untrusted text, never an identity), `CamelLangChain4jRetrieverMemoryId`, and `CamelLangChain4jRetrieverParams`, a read-only `Map` of the `InvocationParameters` passed to the AI service method, absent when there are none.
+
+The response body becomes the retrieved content, one item per element of a `Collection`, an array or an `Iterator` (any other body is one item): `String`, `TextSegment` and `Content` elements are used as they are, an `EmbeddingMatch` (the default output of a `langchain4j-embeddingstore` search) gives its embedded segment with the score and the embedding id, `Map` elements become `key: value` lines (with `documentIdKey` naming the id entry), anything else goes through the Camel type converter. A body that cannot be converted follows `onError`.
+
+Every item is tagged with `camel_retrieval_source`, and with `camel_retrieval_document_id` when an id is known: the `documentIdKey` entry of a `Map`, the key set by the route on a segment, or the `camel_ingest_document_id` that `langchain4j-ingest` writes on every segment it stores, so ingested content can be cited. Response headers prefixed `langchain4j.metadata.` become item metadata, but can never set the `camel_retrieval_*` or `camel_ingest_*` keys.
+
+Pass the caller's identity as an invocation parameter, and scope every query in the route with it:
+
+[source,java]
+----
+from("direct:orders")
+    .filter(simple("${exchangeProperty.CamelLangChain4jRetrieverParams[customerId]} == null"))
+        .throwException(new IllegalArgumentException("customerId is required"))
+    .end()
+    .validate(simple("${exchangeProperty.CamelLangChain4jRetrieverParams[customerId]} regex '[A-Za-z0-9_-]{1,64}'"))
+    .toD("http://orders-api/customers/${exchangeProperty.CamelLangChain4jRetrieverParams[customerId]}/orders?httpMethod=GET")
+    .unmarshal().json(List.class);
+----
+
+Invocation parameters are the only identity a route can rely on. With one query routed to one source, LangChain4j retrieves on the caller's thread; with several sources or several queries it moves to its own executor, where the CDI request context — `SecurityIdentity`, request-scoped beans — is not active. A route must therefore never read request-scoped state, and should fail rather than widen the query when its parameter is missing, since an AI service method that does not declare `InvocationParameters` passes none. Give the route read-only credentials for its backing system, and validate or escape the query text before it reaches a statement or a URI: it comes from an LLM-transformed user message.
+
+=== Failure and cost control
+
+Each source has its own failure and cost policy. The table lists the `CamelContentRetriever` setters; their configuration twins are `timeout`, `on-error`, `max-results`, `max-chars`, `concurrency` and `queue-capacity`:
+
+[width="100%",cols="2,1,5",options="header"]
+|===
+|Setter |Default |Effect
+
+|`setTimeout` |30 seconds |how long a retrieval waits for the route, time in the queue included; `null` waits forever, so a hung source blocks the AI service call
+|`setOnError` |`FAIL` |`FAIL` fails the AI service call; `EMPTY` logs a warning and contributes no content, so the answer degrades instead. A `VirtualMachineError` is always rethrown
+|`setMaxResults` |`0` (unlimited) |maximum number of items this source contributes
+|`setMaxChars` |`0` (unlimited) |maximum number of characters this source contributes across all items
+|`setConcurrency` |2 |number of route calls this source runs in parallel
+|`setQueueCapacity` |64 |number of calls that may wait for a free thread; beyond it the call is rejected and follows `onError`
+|===
+
+The route always runs on the retriever's own bounded pool, never on the calling thread, so a saturated source is rejected instead of blocking the caller, with platform and virtual threads alike (the `camel.threads.virtual.enabled` system property). When the timeout elapses, a call still waiting in the queue is dropped, but a call already running keeps running until the route answers: set the component timeouts in the route as well (`requestTimeout`, connection timeouts). When the retriever stops, queued calls follow `onError` and running calls are interrupted.
+
+`OnError.EMPTY` hides a failing source from the answer, so each retriever counts its calls: `getRetrievalCount()`, `getFailureCount()` and `getFailureCount(RetrievalFailure)`, with the reasons `REJECTED`, `STOPPED`, `TIMEOUT`, `ROUTE_FAILURE` and `CONVERSION`.
+
+
+=== Building retrievers in Java
+
+A retriever can also be built in Java, for an augmentor wired by hand. Prefer injecting the declared `@Named` retriever beans; when you build retrievers yourself, wire them into a `RetrievalAugmentor` in a supplier and bind it to the AI service:
+
+[source,java]
+----
+@ApplicationScoped
+public class AssistantAugmentor implements Supplier<RetrievalAugmentor> {
+    @Inject
+    CamelContext camelContext;
+    @Inject
+    ChatModel chatModel;
+
+    private RetrievalAugmentor augmentor;
+
+    @PostConstruct
+    void build() throws Exception {
+        CamelContentRetriever orders = new CamelContentRetriever(camelContext, "orders", "direct:orders")
+                .setDocumentIdKey("orderId")
+                .setTimeout(Duration.ofSeconds(2))
+                .setOnError(OnError.EMPTY);
+        CamelContentRetriever kb = new CamelContentRetriever(camelContext, "kb", "direct:kb");
+        // starts the retriever, and stops it with the context
+        camelContext.addService(orders);
+        camelContext.addService(kb);
+
+        // insertion order keeps the router prompt stable
+        Map<ContentRetriever, String> sources = new LinkedHashMap<>();
+        sources.put(orders, "The customer's recent orders");
+        sources.put(kb, "Support articles about orders and refunds");
+
+        augmentor = DefaultRetrievalAugmentor.builder()
+                .queryRouter(LanguageModelQueryRouter.builder()
+                        .chatModel(chatModel)
+                        .retrieverToDescription(sources)
+                        .build())
+                .contentInjector(DefaultContentInjector.builder()
+                        .metadataKeysToInclude(List.of("camel_retrieval_source", "camel_retrieval_document_id"))
+                        .build())
+                .build();
+    }
+
+    @Override
+    public RetrievalAugmentor get() {
+        return augmentor;
+    }
+}
+
+@RegisterAiService(retrievalAugmentor = AssistantAugmentor.class)
+public interface Assistant {
+    String chat(@UserMessage String question, InvocationParameters parameters);
+}
+----
+
+AI services are request scoped and ask the supplier for an augmentor every time one is created. Build the retrievers once, in `@PostConstruct` of an `@ApplicationScoped` supplier as above, or inject the declared beans: a retriever created in `get()` leaks itself and its thread pool on every request. Configure every retriever before registering it with `camelContext.addService(...)`: registration starts its producer template and thread pool, and its settings cannot change once started. A retriever that is never registered fails every retrieval.

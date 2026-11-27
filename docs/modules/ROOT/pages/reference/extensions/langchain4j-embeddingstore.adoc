@@ -135,6 +135,21 @@ Two limits are worth knowing before treating this as an access control:
 * The filter reaches only the augmentors this extension produces. Easy RAG, or an application-provided `RetrievalAugmentor`, replaces them, and the filter is then never consulted — the build logs a warning when it detects that combination.
 * `EmbeddingStore` implementations are not required to support filtering. One that ignores the filter returns every match, so verify against the store actually in use.
 
+[id="extensions-langchain4j-embeddingstore-usage-camel-retrievers-in-a-retrieval-augmentor"]
+=== Camel retrievers in a retrieval augmentor
+
+A bridge augmentor can retrieve from the Camel retrievers of the xref:reference/extensions/langchain4j-content-retriever.adoc[LangChain4j Content Retriever] extension, declared with `quarkus.camel.langchain4j.retriever.<name>.uri` or `@Retriever`. It references the retrievers by name, with a description of what each one returns, next to its embedding store or without one:
+
+[source,properties]
+----
+quarkus.camel.langchain4j.rag.augmentors.assistant.retrievers.orders.description=The customer's orders of the last 30 days
+quarkus.camel.langchain4j.rag.augmentors.assistant.retrievers.kb.description=Support articles: delivery delays, returns, refunds
+# optional: the embedding store as one more source
+quarkus.camel.langchain4j.rag.augmentors.assistant.embedding-store-name=policies
+----
+
+The augmentor calls every source on every query and puts `camel_retrieval_source` and `camel_retrieval_document_id` into the prompt, so the answer can name its sources. An augmentor needs an embedding store or at least one retriever, and a reference to an undeclared retriever fails the build. The descriptions are not used yet: they are there for a language-model query router, which will pick the relevant sources per query.
+
 
 [id="extensions-langchain4j-embeddingstore-quarkus-langchain4j-bom"]
 == LangChain4j usage
@@ -176,6 +191,15 @@ a|icon:lock[title=Fixed at build time] [[quarkus-camel-langchain4j-rag-augmentor
 
 CDI bean name of the `EmbeddingStore` to use.
 Matches beans annotated with `@Named("name")` or `@EmbeddingStoreName("name")`.
+Optional when the augmentor references at least one Camel retriever.
+| `string`
+| 
+
+a|icon:lock[title=Fixed at build time] [[quarkus-camel-langchain4j-rag-augmentors-augmentors-retrievers-retriever-name-description]]`link:#quarkus-camel-langchain4j-rag-augmentors-augmentors-retrievers-retriever-name-description[quarkus.camel.langchain4j.rag.augmentors."augmentors".retrievers."retriever-name".description]`
+
+What this retriever returns, for example `The customer's orders of the last 30 days`. The augmentor
+calls every source on every query today; a language-model query router will pick sources by their
+description.
 | `string`
 | required icon:exclamation-circle[title=Configuration property is required]
 

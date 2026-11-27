@@ -133,6 +133,7 @@ group-07:
   - dropbox
   - geocoder
   - jslt
+  - langchain4j-content-retriever
   - langchain4j-embeddings
   - langchain4j-embeddings-ql4j
   - langchain4j-ingest
@@ -142,7 +143,6 @@ group-07:
   - ognl
   - olingo4
   - openai
-  - optaplanner
   - pg-replication-slot
   - sjms2-artemis-client
   - splunk-hec

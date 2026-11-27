@@ -159,6 +159,7 @@
         <module>langchain4j-agent-ql4j</module>
         <module>langchain4j-chat</module>
         <module>langchain4j-chat-ql4j</module>
+        <module>langchain4j-content-retriever</module>
         <module>langchain4j-embeddings</module>
         <module>langchain4j-embeddings-ql4j</module>
         <module>langchain4j-embeddingstore</module>
@@ -207,7 +208,6 @@
         <module>openstack</module>
         <module>opentelemetry</module>
         <module>opentelemetry2</module>
-        <module>optaplanner</module>
         <module>paho</module>
         <module>paho-mqtt5</module>
         <module>pdf</module>

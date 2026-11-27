@@ -86,6 +86,17 @@ public class Langchain4jEmbeddingstoreRecorder {
     }
 
     /**
+     * @param useEmbeddingStore whether the augmentor retrieves from an embedding store as well
+     * @param retrieverNames    the Camel retrievers the augmentor references
+     */
+    public Supplier<RetrievalAugmentor> createConfiguredRetrievalAugmentorSupplier(String augmentorName,
+            boolean useEmbeddingStore, String embeddingStoreName, String embeddingModelName,
+            List<String> retrieverNames) {
+        return new DefaultRetrievalAugmentorSupplier(embeddingStoreName, embeddingModelName, augmentorName,
+                useEmbeddingStore, retrieverNames);
+    }
+
+    /**
      * The auto-produced default augmentor resolves the {@code @Default} store and model on first use. The
      * build detected at least one bean of each type, but a store it detected may be named rather than
      * default, which would fail that late; so the beans are checked at startup, once the synthetic ones

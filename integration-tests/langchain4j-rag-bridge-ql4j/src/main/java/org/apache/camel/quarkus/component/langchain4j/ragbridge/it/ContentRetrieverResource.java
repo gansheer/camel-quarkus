@@ -1,0 +1,102 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.apache.camel.quarkus.component.langchain4j.ragbridge.it;
+
+import dev.langchain4j.invocation.InvocationParameters;
+import dev.langchain4j.rag.content.retriever.ContentRetriever;
+import jakarta.enterprise.inject.Any;
+import jakarta.enterprise.inject.Instance;
+import jakarta.enterprise.inject.literal.NamedLiteral;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.MediaType;
+
+@Path("/content-retriever")
+@Consumes(MediaType.TEXT_PLAIN)
+@Produces(MediaType.TEXT_PLAIN)
+public class ContentRetrieverResource {
+
+    @Inject
+    ContentRetrieverAiService aiService;
+
+    @Inject
+    RoutedContentRetrieverAiService routedAiService;
+
+    @Inject
+    FailurePolicyAiService failurePolicyAiService;
+
+    @Inject
+    StrictFailurePolicyAiService strictFailurePolicyAiService;
+
+    @Inject
+    ConfiguredRetrieverAiService configuredRetrieverAiService;
+
+    @Inject
+    @Any
+    Instance<ContentRetriever> retrievers;
+
+    // customerId stands for a server-side identity (e.g. SecurityIdentity); it never comes from the prompt
+    @POST
+    @Path("/chat")
+    public String chat(@QueryParam("customerId") String customerId, String question) {
+        return aiService.chat(question, parameters(customerId));
+    }
+
+    @POST
+    @Path("/routed-chat")
+    public String routedChat(@QueryParam("customerId") String customerId, String question) {
+        return routedAiService.chat(question, parameters(customerId));
+    }
+
+    @POST
+    @Path("/failure-chat")
+    public String failureChat(String question) {
+        return failurePolicyAiService.chat(question);
+    }
+
+    @POST
+    @Path("/strict-chat")
+    public String strictChat(String question) {
+        return strictFailurePolicyAiService.chat(question);
+    }
+
+    @POST
+    @Path("/configured-chat")
+    public String configuredChat(@QueryParam("customerId") String customerId, String question) {
+        return configuredRetrieverAiService.chat(question, parameters(customerId));
+    }
+
+    // a declared retriever is a @Named bean: its toString names the source and the endpoint
+    @GET
+    @Path("/retriever-bean/{name}")
+    public String retrieverBean(@PathParam("name") String name) {
+        Instance<ContentRetriever> retriever = retrievers.select(NamedLiteral.of(name));
+        return retriever.isResolvable() ? retriever.get().toString() : "none";
+    }
+
+    private static InvocationParameters parameters(String customerId) {
+        InvocationParameters parameters = new InvocationParameters();
+        parameters.put("customerId", customerId);
+        return parameters;
+    }
+}

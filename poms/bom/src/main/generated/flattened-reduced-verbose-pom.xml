@@ -328,7 +328,7 @@
       <dependency>
         <groupId>com.datastax.oss.quarkus</groupId>
         <artifactId>cassandra-quarkus-client</artifactId>
-        <version>1.4.1</version>
+        <version>1.5.0</version>
         <exclusions>
           <exclusion>
             <groupId>com.github.spotbugs</groupId>
@@ -343,7 +343,7 @@
       <dependency>
         <groupId>com.datastax.oss.quarkus</groupId>
         <artifactId>cassandra-quarkus-client-deployment</artifactId>
-        <version>1.4.1</version>
+        <version>1.5.0</version>
       </dependency>
       <dependency>
         <groupId>com.esotericsoftware.kryo</groupId>
@@ -389,7 +389,7 @@
       <dependency>
         <groupId>com.github.mwiede</groupId>
         <artifactId>jsch</artifactId>
-        <version>2.28.7</version>
+        <version>2.28.8</version>
       </dependency>
       <dependency>
         <groupId>com.google.api</groupId>
@@ -767,62 +767,62 @@
       <dependency>
         <groupId>dev.langchain4j</groupId>
         <artifactId>langchain4j</artifactId>
-        <version>1.23.0</version>
+        <version>1.24.0</version>
       </dependency>
       <dependency>
         <groupId>dev.langchain4j</groupId>
         <artifactId>langchain4j-core</artifactId>
-        <version>1.23.0</version>
+        <version>1.24.0</version>
       </dependency>
       <dependency>
         <groupId>dev.langchain4j</groupId>
         <artifactId>langchain4j-core-jackson3</artifactId>
-        <version>1.23.0-beta33</version>
+        <version>1.24.0-beta34</version>
       </dependency>
       <dependency>
         <groupId>dev.langchain4j</groupId>
         <artifactId>langchain4j-embeddings</artifactId>
-        <version>1.23.0-beta33</version>
+        <version>1.24.0-beta34</version>
       </dependency>
       <dependency>
         <groupId>dev.langchain4j</groupId>
         <artifactId>langchain4j-guardrails</artifactId>
-        <version>1.23.0-beta33</version>
+        <version>1.24.0-beta34</version>
       </dependency>
       <dependency>
         <groupId>dev.langchain4j</groupId>
         <artifactId>langchain4j-http-client</artifactId>
-        <version>1.23.0</version>
+        <version>1.24.0</version>
       </dependency>
       <dependency>
         <groupId>dev.langchain4j</groupId>
         <artifactId>langchain4j-http-client-jdk</artifactId>
-        <version>1.23.0</version>
+        <version>1.24.0</version>
       </dependency>
       <dependency>
         <groupId>dev.langchain4j</groupId>
         <artifactId>langchain4j-hugging-face</artifactId>
-        <version>1.23.0-beta33</version>
+        <version>1.24.0-beta34</version>
       </dependency>
       <dependency>
         <groupId>dev.langchain4j</groupId>
         <artifactId>langchain4j-jackson3</artifactId>
-        <version>1.23.0-beta33</version>
+        <version>1.24.0-beta34</version>
       </dependency>
       <dependency>
         <groupId>dev.langchain4j</groupId>
         <artifactId>langchain4j-mcp</artifactId>
-        <version>1.23.0-beta33</version>
+        <version>1.24.0-beta34</version>
       </dependency>
       <dependency>
         <groupId>dev.langchain4j</groupId>
         <artifactId>langchain4j-open-ai</artifactId>
-        <version>1.23.0</version>
+        <version>1.24.0</version>
       </dependency>
       <dependency>
         <groupId>dev.langchain4j</groupId>
         <artifactId>langchain4j-reactive-streaming</artifactId>
-        <version>1.23.0-beta33</version>
+        <version>1.24.0-beta34</version>
       </dependency>
       <dependency>
         <groupId>io.atlassian.fugue</groupId>
@@ -1217,32 +1217,32 @@
       <dependency>
         <groupId>io.quarkiverse.jgit</groupId>
         <artifactId>quarkus-jgit</artifactId>
-        <version>4.0.0.Beta1</version>
+        <version>4.0.0</version>
       </dependency>
       <dependency>
         <groupId>io.quarkiverse.jgit</groupId>
         <artifactId>quarkus-jgit-deployment</artifactId>
-        <version>4.0.0.Beta1</version>
+        <version>4.0.0</version>
       </dependency>
       <dependency>
         <groupId>io.quarkiverse.jsch</groupId>
         <artifactId>quarkus-jsch</artifactId>
-        <version>4.0.0.Beta1</version>
+        <version>4.0.0</version>
       </dependency>
       <dependency>
         <groupId>io.quarkiverse.jsch</groupId>
         <artifactId>quarkus-jsch-deployment</artifactId>
-        <version>4.0.0.Beta1</version>
+        <version>4.0.0</version>
       </dependency>
       <dependency>
         <groupId>io.quarkiverse.langchain4j</groupId>
         <artifactId>quarkus-langchain4j-core</artifactId>
-        <version>2.0.0.Beta4</version>
+        <version>2.0.0.CR1</version>
       </dependency>
       <dependency>
         <groupId>io.quarkiverse.langchain4j</groupId>
         <artifactId>quarkus-langchain4j-core-deployment</artifactId>
-        <version>2.0.0.Beta4</version>
+        <version>2.0.0.CR1</version>
       </dependency>
       <dependency>
         <groupId>io.quarkiverse.mcp</groupId>
@@ -6695,6 +6695,16 @@
       </dependency>
       <dependency>
         <groupId>org.apache.camel.quarkus</groupId>
+        <artifactId>camel-quarkus-langchain4j-content-retriever</artifactId>
+        <version>4.0.0-SNAPSHOT</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.camel.quarkus</groupId>
+        <artifactId>camel-quarkus-langchain4j-content-retriever-deployment</artifactId>
+        <version>4.0.0-SNAPSHOT</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.camel.quarkus</groupId>
         <artifactId>camel-quarkus-langchain4j-embeddings</artifactId>
         <version>4.0.0-SNAPSHOT</version>
       </dependency>
@@ -8471,7 +8481,7 @@
       <dependency>
         <groupId>org.apache.cassandra</groupId>
         <artifactId>java-driver-core</artifactId>
-        <version>4.19.2</version>
+        <version>4.19.4</version>
         <exclusions>
           <exclusion>
             <groupId>io.dropwizard.metrics</groupId>
@@ -8486,12 +8496,12 @@
       <dependency>
         <groupId>org.apache.cassandra</groupId>
         <artifactId>java-driver-guava-shaded</artifactId>
-        <version>4.19.2</version>
+        <version>4.19.4</version>
       </dependency>
       <dependency>
         <groupId>org.apache.cassandra</groupId>
         <artifactId>java-driver-query-builder</artifactId>
-        <version>4.19.2</version>
+        <version>4.19.4</version>
         <exclusions>
           <exclusion>
             <groupId>com.github.spotbugs</groupId>
@@ -8520,11 +8530,6 @@
       <dependency>
         <groupId>org.apache.cxf</groupId>
         <artifactId>cxf-core</artifactId>
-        <version>4.2.4</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.cxf</groupId>
-        <artifactId>cxf-integration-tracing-opentelemetry</artifactId>
         <version>4.2.4</version>
       </dependency>
       <dependency>
@@ -8571,11 +8576,6 @@
       <dependency>
         <groupId>org.apache.cxf</groupId>
         <artifactId>cxf-rt-frontend-simple</artifactId>
-        <version>4.2.4</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.cxf</groupId>
-        <artifactId>cxf-rt-management</artifactId>
         <version>4.2.4</version>
       </dependency>
       <dependency>
@@ -8636,11 +8636,6 @@
       <dependency>
         <groupId>org.apache.cxf</groupId>
         <artifactId>cxf-rt-ws-policy</artifactId>
-        <version>4.2.4</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.cxf</groupId>
-        <artifactId>cxf-rt-ws-rm</artifactId>
         <version>4.2.4</version>
       </dependency>
       <dependency>
@@ -8931,6 +8926,26 @@
             <artifactId>netty-all</artifactId>
           </exclusion>
           <exclusion>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-logging</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-logging-otlp</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-otlp</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-prometheus</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk</artifactId>
+          </exclusion>
+          <exclusion>
             <groupId>org.codehaus.mojo</groupId>
             <artifactId>animal-sniffer-annotations</artifactId>
           </exclusion>
@@ -9154,12 +9169,12 @@
       <dependency>
         <groupId>org.eclipse.jgit</groupId>
         <artifactId>org.eclipse.jgit</artifactId>
-        <version>7.8.0.202609011348-r</version>
+        <version>7.8.1.202611041320-r</version>
       </dependency>
       <dependency>
         <groupId>org.eclipse.jgit</groupId>
         <artifactId>org.eclipse.jgit.ssh.jsch</artifactId>
-        <version>7.8.0.202609011348-r</version>
+        <version>7.8.1.202611041320-r</version>
       </dependency>
       <dependency>
         <groupId>org.ehcache</groupId>
@@ -9227,27 +9242,6 @@
         <groupId>org.json</groupId>
         <artifactId>json</artifactId>
         <version>20260814</version>
-      </dependency>
-      <dependency>
-        <groupId>org.jvnet.jaxb</groupId>
-        <artifactId>jaxb-plugins</artifactId>
-        <version>4.0.16</version>
-        <exclusions>
-          <exclusion>
-            <groupId>org.slf4j</groupId>
-            <artifactId>jcl-over-slf4j</artifactId>
-          </exclusion>
-        </exclusions>
-      </dependency>
-      <dependency>
-        <groupId>org.jvnet.jaxb</groupId>
-        <artifactId>jaxb-plugins-runtime</artifactId>
-        <version>4.0.16</version>
-      </dependency>
-      <dependency>
-        <groupId>org.jvnet.jaxb</groupId>
-        <artifactId>jaxb-plugins-tools</artifactId>
-        <version>4.0.16</version>
       </dependency>
       <dependency>
         <groupId>org.jvnet.mimepull</groupId>

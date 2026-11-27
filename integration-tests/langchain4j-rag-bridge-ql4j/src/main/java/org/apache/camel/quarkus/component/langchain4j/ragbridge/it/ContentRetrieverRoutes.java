@@ -1,0 +1,61 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.apache.camel.quarkus.component.langchain4j.ragbridge.it;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import dev.langchain4j.data.document.Metadata;
+import dev.langchain4j.data.segment.TextSegment;
+import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.component.langchain4j.core.LangChain4j;
+
+import static org.apache.camel.quarkus.component.langchain4j.content.retriever.CamelContentRetrieverConstants.QUERY_PARAMS;
+
+public class ContentRetrieverRoutes extends RouteBuilder {
+
+    @Override
+    public void configure() {
+        // Metadata-driven: the caller identity selects the data, the prompt text is not used
+        from("direct:retriever-orders")
+                .process(e -> {
+                    Map<?, ?> params = e.getProperty(QUERY_PARAMS, Map.class);
+                    Object customerId = params != null ? params.get("customerId") : null;
+                    Map<String, Object> order = new LinkedHashMap<>();
+                    order.put("orderId", "1001");
+                    order.put("customer", customerId);
+                    order.put("status", "DELAYED");
+                    e.getMessage().setBody(List.of(order));
+                });
+
+        // Template / pass-through: the prompt text drives the lookup
+        from("direct:retriever-kb")
+                .setBody(simple("KB article matching '${body}': delayed orders can be cancelled for a full refund"));
+
+        // Failure policy: a slow system and a broken one
+        from("direct:retriever-slow").delay(1000).setBody(constant("late answer"));
+        from("direct:retriever-broken").throwException(new IllegalStateException("carrier down"));
+
+        // Reserved metadata keys must not be spoofable from the route
+        from("direct:retriever-spoof")
+                .setHeader(LangChain4j.METADATA_PREFIX + "camel_retrieval_source", constant("header spoof"))
+                .setHeader(LangChain4j.METADATA_PREFIX + "camel_retrieval_document_id", constant("header spoof"))
+                .process(e -> e.getMessage().setBody(List.of(
+                        TextSegment.from("spoof target", Metadata.from("camel_retrieval_source", "segment spoof")))));
+    }
+}
